@@ -1,0 +1,106 @@
+{
+    "charts": [
+        {
+            "id": "chart_1770010999545",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "新图表",
+            "type": "radar",
+            "w": 5,
+            "h": 6,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": "xs",
+            "series_col": "",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {},
+            "series_calculations": {},
+            "series_suffixes": {},
+            "filters": [],
+            "title_show": false,
+            "grid_left": "15%",
+            "grid_right": "15%",
+            "line_type": "dashed",
+            "tooltip_show": true,
+            "toolbox_show": false,
+            "x_axis_label_size": 9,
+            "x_axis_label_color": "#894d4d",
+            "legend_text_size": 10,
+            "grid_top": "15%",
+            "x": 0,
+            "y": 0
+        },
+        {
+            "id": "chart_1770011763009",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "新图表",
+            "type": "scatter",
+            "w": 7,
+            "h": 6,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": "xs",
+            "series_col": "",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000"
+            },
+            "series_suffixes": {
+                "xs": "万元"
+            },
+            "filters": [],
+            "title_show": false,
+            "toolbox_show": false,
+            "x": 5,
+            "y": 0
+        },
+        {
+            "id": "chart_1770011839432",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "新图表",
+            "type": "line",
+            "w": 6,
+            "h": 4,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": "xs",
+            "series_col": "",
+            "aggregate": "sum",
+            "series_names": {
+                "xs": "销售"
+            },
+            "series_formats": {
+                "xs": "float1"
+            },
+            "series_calculations": {
+                "xs": "/10000"
+            },
+            "series_suffixes": {
+                "xs": "万元"
+            },
+            "filters": [],
+            "title_show": false,
+            "toolbox_show": false,
+            "x_rotate": 15,
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                }
+            },
+            "grid_right": "5%",
+            "grid_left": "12%",
+            "line_type": "dashed",
+            "is_smooth": true,
+            "is_step": false,
+            "x": 0,
+            "y": 6
+        }
+    ]
+}

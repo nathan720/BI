@@ -1,0 +1,729 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<style>
+    .hover-show { opacity: 0; transition: opacity 0.2s; }
+    .hover-bg-light:hover .hover-show { opacity: 1; }
+    .hover-bg-light:hover { background-color: #f8f9fa; cursor: pointer; }
+    
+    .card-btn { 
+        transition: all 0.3s ease; 
+        cursor: pointer; 
+        height: 100%; 
+        border: 1px solid #eee;
+    }
+    .card-btn:hover { 
+        transform: translateY(-5px); 
+        box-shadow: 0 .5rem 1.5rem rgba(0,0,0,.08)!important; 
+        border-color: #dee2e6;
+    }
+    .card-btn .icon-box { 
+        width: 80px; 
+        height: 80px; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        border-radius: 50%; 
+        margin-bottom: 1.5rem;
+    }
+    
+    /* Tree Styles */
+    .directory-tree-container {
+        font-size: 0.9rem;
+    }
+</style>
+
+<div class="row h-100">
+    <!-- Left Sidebar: Tree -->
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100" style="min-height: 500px;">
+            <div class="card-header bg-white py-3 border-bottom">
+                <h6 class="mb-0 fw-bold"><i class="bi bi-list-ul me-2"></i>报表目录</h6>
+            </div>
+            <div class="card-body p-2 directory-tree-container" style="overflow-y: auto; max-height: 80vh;">
+                <!-- Search Box -->
+                <div class="px-2 mb-3">
+                    <input type="text" class="form-control form-control-sm bg-light border-0" placeholder="搜索目录或报表...">
+                </div>
+
+                <!-- Orphan Reports (if any) -->
+                {% if orphan_reports %}
+                <div class="mb-2">
+                    <div class="d-flex align-items-center px-2 mb-1" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#orphanCollapse" aria-expanded="false">
+                         <i class="bi bi-caret-right-fill small text-muted me-2" id="orphanCollapseIcon"></i>
+                         <div class="fw-bold text-muted small">未分类报表</div>
+                    </div>
+                    <div class="collapse" id="orphanCollapse">
+                        {% for report in orphan_reports %}
+                        <div class="d-flex align-items-center px-2 py-1 rounded hover-bg-light ps-4">
+                             <i class="bi bi-bar-chart-fill me-2 text-secondary"></i>
+                             <span class="small">{{ report.name }}</span>
+                             <div class="ms-auto btn-group btn-group-sm">
+                                <a href="#" class="btn btn-link text-secondary p-0 mx-1" title="上移" onclick="reorderReport(event, {{ report.id }}, 'up')">
+                                    <i class="bi bi-arrow-up-short"></i>
+                                </a>
+                                <a href="#" class="btn btn-link text-secondary p-0 mx-1" title="下移" onclick="reorderReport(event, {{ report.id }}, 'down')">
+                                    <i class="bi bi-arrow-down-short"></i>
+                                </a>
+                                {% if not report.external_url %}
+                                <a href="{% url 'report_design' report.id %}" class="btn btn-link text-primary p-0 mx-1" title="设计报表">
+                                    <i class="bi bi-pencil-square"></i>
+                                </a>
+                                <a href="#" class="btn btn-link text-secondary p-0 mx-1" title="设置" onclick="openEditReportModal(event, {{ report.id }}, '{{ report.name|escapejs }}', '{{ report.code|escapejs }}', null)">
+                                    <i class="bi bi-gear"></i>
+                                </a>
+                                {% else %}
+                                <a href="#" class="btn btn-link text-secondary p-0 mx-1" title="设置" onclick="openEditExternalLinkModal(event, {{ report.id }}, '{{ report.name|escapejs }}', '{{ report.external_url|escapejs }}')">
+                                    <i class="bi bi-gear"></i>
+                                </a>
+                                {% endif %}
+                                <a href="{% url 'report_delete' report.id %}" class="btn btn-link text-danger p-0 mx-1" title="删除" onclick="return confirm('确定要删除该报表吗？');">
+                                    <i class="bi bi-trash"></i>
+                                </a>
+                             </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <script>
+                        // Simple icon toggler
+                        document.getElementById('orphanCollapse').addEventListener('show.bs.collapse', function () {
+                            document.getElementById('orphanCollapseIcon').classList.replace('bi-caret-right-fill', 'bi-caret-down-fill');
+                        });
+                        document.getElementById('orphanCollapse').addEventListener('hide.bs.collapse', function () {
+                            document.getElementById('orphanCollapseIcon').classList.replace('bi-caret-down-fill', 'bi-caret-right-fill');
+                        });
+                    </script>
+                </div>
+                <hr class="my-2 text-muted opacity-25">
+                {% endif %}
+
+                <!-- Directory Tree -->
+                <div class="list-group list-group-flush">
+                    {% include "dashboard/report/tree_with_reports.html" with nodes=directory_tree %}
+                    
+                    {% if not directory_tree and not orphan_reports %}
+                    <div class="text-center text-muted py-5">
+                        <i class="bi bi-inbox fs-4 d-block mb-2"></i>
+                        <small>暂无数据</small>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right Content: Actions -->
+    <div class="col-md-9">
+        <div class="card shadow-sm h-100 border-0 bg-transparent">
+            <div class="card-header bg-white border-bottom-0 pt-0 pb-3">
+                <h5 class="mb-0 fw-bold">管理目录</h5>
+            </div>
+            <div class="card-body px-0 pt-0">
+                <div class="row g-4 mt-1">
+                    <!-- Action A: Published Reports -->
+                    <div class="col-md-4">
+                        <a href="#" class="text-decoration-none" onclick="openAddTemplateModal(event)">
+                            <div class="card card-btn shadow-sm text-center py-5">
+                                <div class="card-body">
+                                    <div class="icon-box bg-primary bg-opacity-10 text-primary mx-auto border border-primary border-opacity-10">
+                                        <i class="bi bi-file-earmark-richtext fs-1"></i>
+                                    </div>
+                                    <h5 class="card-title text-dark fw-bold">已发布的报表</h5>
+                                    <p class="card-text text-muted small mt-2">从本地模板库加载报表</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Action B: Add Link -->
+                    <div class="col-md-4">
+                        <a href="#" class="text-decoration-none" onclick="openExternalLinkModal(event)">
+                            <div class="card card-btn shadow-sm text-center py-5">
+                                <div class="card-body">
+                                    <div class="icon-box bg-info bg-opacity-10 text-info mx-auto border border-info border-opacity-10">
+                                        <i class="bi bi-link-45deg fs-1"></i>
+                                    </div>
+                                    <h5 class="card-title text-dark fw-bold">新建外部链接地址</h5>
+                                    <p class="card-text text-muted small mt-2">添加外部系统链接或网页</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Action C: Add Directory -->
+                    <div class="col-md-4">
+                        <a href="{% url 'report_directory_create' %}" class="text-decoration-none">
+                            <div class="card card-btn shadow-sm text-center py-5">
+                                <div class="card-body">
+                                    <div class="icon-box bg-warning bg-opacity-10 text-warning mx-auto border border-warning border-opacity-10">
+                                        <i class="bi bi-folder-plus fs-1"></i>
+                                    </div>
+                                    <h5 class="card-title text-dark fw-bold">新增子目录</h5>
+                                    <p class="card-text text-muted small mt-2">创建新的报表分类目录</p>
+                                </div>
+                            </div>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- External Link Modal -->
+<div class="modal fade" id="externalLinkModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-bottom-0 pb-0">
+                 <h5 class="modal-title fw-bold">新建外部链接</h5>
+                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-3">
+                 <div class="mb-3">
+                     <label class="form-label small text-muted">报表名称</label>
+                     <input type="text" class="form-control" id="externalLinkName" placeholder="输入报表名称">
+                 </div>
+                 <div class="mb-3">
+                     <label class="form-label small text-muted">外部链接地址 (URL)</label>
+                     <input type="text" class="form-control" id="externalLinkUrl" placeholder="https://example.com/...">
+                 </div>
+            </div>
+            <div class="modal-footer border-top-0 pt-0">
+                <button type="button" class="btn btn-light text-muted" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary px-4" onclick="saveExternalLink()">确定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Template Modal -->
+{{ report_templates|json_script:"report-templates-data" }}
+<div class="modal fade" id="addTemplateModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content border-0 shadow-lg">
+            <div class="modal-header border-bottom-0 pb-0">
+                 <h5 class="modal-title fw-bold">添加模板</h5>
+                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body pt-2">
+                 <!-- Template Selection Area -->
+                 <div id="templateSelectionArea">
+                     <!-- Search -->
+                     <div class="input-group mb-3">
+                         <span class="input-group-text bg-white border-end-0 text-muted"><i class="bi bi-search"></i></span>
+                         <input type="text" class="form-control border-start-0 ps-0" id="templateSearch" placeholder="搜索..." style="box-shadow: none;">
+                     </div>
+
+                     <!-- Tree View -->
+                     <div class="border rounded p-2 bg-white" style="height: 300px; overflow-y: auto;" id="templateTreeContainer">
+                         <!-- JS will populate this -->
+                     </div>
+                 </div>
+            </div>
+            <div class="border-top p-3 bg-light">
+                <div>
+                    <label class="form-label small text-muted mb-1">报表名称</label>
+                    <input type="text" class="form-control" id="templateReportName" placeholder="如果不填，默认使用模板文件名">
+                </div>
+            </div>
+            <div class="modal-footer border-0 pt-0 pb-3 pe-3">
+                <button type="button" class="btn btn-light text-muted" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary px-4" onclick="confirmTemplateSelection()">确定</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let selectedDirectoryId = {{ selected_directory_id|default:"null" }};
+    let editingReportId = null;
+
+    document.addEventListener('DOMContentLoaded', function() {
+        const templatesData = JSON.parse(document.getElementById('report-templates-data').textContent);
+        const container = document.getElementById('templateTreeContainer');
+        const searchInput = document.getElementById('templateSearch');
+        
+        // Render Tree
+        renderTree(templatesData, container);
+        
+        // Search Functionality
+        searchInput.addEventListener('input', function(e) {
+             const term = e.target.value.toLowerCase().trim();
+             const listItems = container.querySelectorAll('li');
+             
+             if (!term) {
+                 // Reset
+                 listItems.forEach(li => {
+                     li.style.display = '';
+                 });
+                 return;
+             }
+
+             // Hide all
+             listItems.forEach(li => li.style.display = 'none');
+             
+             // Find matches
+             const matches = [];
+             listItems.forEach(li => {
+                 const textSpan = li.querySelector('span.text-dark');
+                 if (textSpan && textSpan.innerText.toLowerCase().includes(term)) {
+                     matches.push(li);
+                 }
+             });
+             
+             // Show matches and their parents
+             matches.forEach(li => {
+                 li.style.display = '';
+                 
+                 // Show parents
+                 let curr = li;
+                 while(curr) {
+                     const ul = curr.parentElement; // UL
+                     if (!ul || ul === container) break;
+                     
+                     ul.classList.add('show');
+                     
+                     const parentLi = ul.parentElement; // LI
+                     if (parentLi && parentLi.tagName === 'LI') {
+                         parentLi.style.display = '';
+                         // Update toggle icon
+                         const toggle = parentLi.querySelector('.bi-plus-square');
+                         if (toggle) {
+                             toggle.className = 'bi bi-dash-square me-2 text-muted small';
+                         }
+                     }
+                     curr = parentLi;
+                 }
+             });
+        });
+    });
+
+    // Expose functions to global scope
+    window.selectDirectory = selectDirectory;
+    window.openAddTemplateModal = openAddTemplateModal;
+    window.openEditReportModal = openEditReportModal;
+    window.openExternalLinkModal = openExternalLinkModal;
+    window.openEditExternalLinkModal = openEditExternalLinkModal;
+    window.confirmTemplateSelection = confirmTemplateSelection;
+    window.saveExternalLink = saveExternalLink;
+    window.handleTemplateSelection = handleTemplateSelection;
+    window.reorderReport = reorderReport;
+
+    function selectDirectory(id, element) {
+        selectedDirectoryId = id;
+        
+        // UI Update
+        document.querySelectorAll('.directory-item').forEach(el => {
+            el.classList.remove('bg-primary', 'bg-opacity-10', 'text-primary');
+        });
+        
+        element.classList.add('bg-primary', 'bg-opacity-10', 'text-primary');
+    }
+
+    function openAddTemplateModal(e) {
+        e.preventDefault();
+        if (!selectedDirectoryId) {
+            alert('请先在左侧选择一个目录！');
+            return;
+        }
+        editingReportId = null; // Reset editing state
+        document.querySelector('#addTemplateModal .modal-title').innerText = '添加模板';
+        document.getElementById('templateReportName').value = '';
+        
+        // Show Template Selection Area
+        const area = document.getElementById('templateSelectionArea');
+        if (area) area.style.display = 'block';
+
+        // Reset Checkboxes
+        document.querySelectorAll('#templateTreeContainer input[type="checkbox"]').forEach(cb => cb.checked = false);
+        
+        const el = document.getElementById('addTemplateModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(el);
+        modal.show();
+    }
+
+    function openEditReportModal(e, reportId, reportName, reportCode, directoryId) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        editingReportId = reportId;
+        
+        // Update Modal Title
+        document.querySelector('#addTemplateModal .modal-title').innerText = '修订报表';
+        document.getElementById('templateReportName').value = reportName;
+        
+        // Show Template Selection Area
+        const area = document.getElementById('templateSelectionArea');
+        if (area) area.style.display = 'block';
+        
+        // Try to select the current template file
+        document.querySelectorAll('#templateTreeContainer input[type="checkbox"]').forEach(cb => {
+            cb.checked = false;
+            // Check if value (rel_path) contains the code (filename without ext)
+            // This is a rough check, might need exact match logic if paths are complex
+            // rel_path e.g. "reports/foo.json", code "foo"
+            const parts = cb.value.split(/[\\/]/);
+            const filename = parts[parts.length - 1];
+            const code = filename.replace(/\.(json|js)$/, '');
+            
+            if (code === reportCode) {
+                cb.checked = true;
+                // Expand parents
+                let curr = cb.closest('li');
+                while(curr) {
+                    const ul = curr.parentElement;
+                    if (!ul || ul.id === 'templateTreeContainer') break;
+                    ul.classList.add('show');
+                    const parentLi = ul.parentElement;
+                    if (parentLi && parentLi.tagName === 'LI') {
+                        const toggle = parentLi.querySelector('.bi-plus-square');
+                        if (toggle) toggle.className = 'bi bi-dash-square me-2 text-muted small';
+                    }
+                    curr = parentLi;
+                }
+            }
+        });
+
+        const el = document.getElementById('addTemplateModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(el);
+        modal.show();
+    }
+
+    function openExternalLinkModal(e) {
+        e.preventDefault();
+        if (!selectedDirectoryId) {
+            alert('请先在左侧选择一个目录！');
+            return;
+        }
+        editingReportId = null;
+        document.querySelector('#externalLinkModal .modal-title').innerText = '新建外部链接';
+        document.getElementById('externalLinkName').value = '';
+        document.getElementById('externalLinkUrl').value = '';
+        
+        const el = document.getElementById('externalLinkModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(el);
+        modal.show();
+    }
+
+    function openEditExternalLinkModal(e, reportId, reportName, externalUrl) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        editingReportId = reportId;
+        
+        document.querySelector('#externalLinkModal .modal-title').innerText = '修订外部链接';
+        document.getElementById('externalLinkName').value = reportName;
+        document.getElementById('externalLinkUrl').value = externalUrl;
+        
+        const el = document.getElementById('externalLinkModal');
+        const modal = bootstrap.Modal.getOrCreateInstance(el);
+        modal.show();
+    }
+
+    function renderTree(nodes, container, level=0) {
+        const ul = document.createElement('ul');
+        ul.className = 'list-unstyled mb-0';
+        if (level > 0) ul.classList.add('ms-4', 'collapse', 'show'); // Indent
+        
+        nodes.forEach(node => {
+            const li = document.createElement('li');
+            li.className = 'mb-1';
+            
+            const isDir = node.type === 'dir';
+            const hasChildren = node.children && node.children.length > 0;
+            
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center py-1 px-2 rounded hover-bg-light';
+            
+            // Toggle Icon
+            const toggle = document.createElement('i');
+            toggle.className = `bi bi-${isDir ? 'plus-square' : 'file-earmark'} me-2 text-muted small`;
+            if (isDir) {
+                 toggle.style.cursor = 'pointer';
+                 toggle.onclick = (e) => {
+                     e.stopPropagation();
+                     const childUl = li.querySelector('ul');
+                     if (childUl) {
+                         const isShown = childUl.classList.contains('show');
+                         if (isShown) {
+                             childUl.classList.remove('show');
+                             toggle.className = 'bi bi-plus-square me-2 text-muted small';
+                         } else {
+                             childUl.classList.add('show');
+                             toggle.className = 'bi bi-dash-square me-2 text-muted small';
+                         }
+                     }
+                 };
+                 // Default state: Expanded
+                 toggle.className = 'bi bi-dash-square me-2 text-muted small';
+            } else {
+                toggle.className = 'bi bi-file-earmark-text me-2 text-secondary small';
+            }
+            
+            // Checkbox
+            const checkbox = document.createElement('input');
+            checkbox.type = 'checkbox';
+            checkbox.className = 'form-check-input me-2';
+            checkbox.value = node.rel_path;
+            checkbox.dataset.type = node.type;
+            
+            // Allow clicking row to toggle checkbox
+            row.onclick = (e) => {
+                if (e.target !== checkbox && e.target !== toggle) {
+                    checkbox.checked = !checkbox.checked;
+                    // Enforce single selection
+                    if (checkbox.checked) {
+                         handleTemplateSelection(checkbox);
+                    }
+                }
+            };
+            
+            checkbox.onclick = (e) => {
+                // Enforce single selection
+                 if (checkbox.checked) {
+                     handleTemplateSelection(checkbox);
+                }
+            }
+
+            // Label
+            const label = document.createElement('span');
+            label.className = 'text-dark small';
+            label.innerText = node.name;
+            
+            row.appendChild(toggle);
+            row.appendChild(checkbox);
+            row.appendChild(label);
+            li.appendChild(row);
+            
+            if (hasChildren) {
+                const childContainer = renderTree(node.children, null, level + 1);
+                li.appendChild(childContainer);
+            }
+            
+            ul.appendChild(li);
+        });
+        
+        if (container) container.appendChild(ul);
+        return ul;
+    }
+
+    function handleTemplateSelection(checkbox) {
+        // Uncheck others
+        document.querySelectorAll('#templateTreeContainer input[type="checkbox"]').forEach(cb => {
+             if (cb !== checkbox) cb.checked = false;
+        });
+        
+        // Auto-fill name if empty
+        const nameInput = document.getElementById('templateReportName');
+        if (nameInput && !nameInput.value.trim()) {
+            // Checkbox value is rel_path e.g. "reports/foo.json"
+            // Extract filename without extension
+            const parts = checkbox.value.split(/[\\/]/);
+            const filename = parts[parts.length - 1];
+            const name = filename.replace(/\.(json|js)$/, '');
+            nameInput.value = name;
+        }
+    }
+
+    function confirmTemplateSelection() {
+        const selected = document.querySelector('#templateTreeContainer input[type="checkbox"][data-type="file"]:checked');
+        
+        // Handling Edit Mode
+        if (editingReportId) {
+            const nameInput = document.getElementById('templateReportName');
+            const name = nameInput.value.trim();
+            
+            if (!name) {
+                alert('请输入报表名称！');
+                return;
+            }
+            
+            const payload = {
+                name: name
+            };
+            
+            // Only update template if explicitly selected (which is hidden in Edit mode, but logic remains)
+            if (selected) {
+                 let relPath = selected.value;
+                 relPath = relPath.replace(/^reports[\\\/]/, '');
+                 payload.template_path = relPath;
+            }
+            
+            // Call Update API (using save_meta)
+            fetch(`/api/report/${editingReportId}/save_meta`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('更新失败: ' + data.message);
+                }
+            })
+            .catch(err => {
+                alert('更新错误: ' + err);
+            });
+            
+            return;
+        }
+
+        // Handling Create Mode
+        if (!selected) {
+            alert('请先选择一个报表模板！');
+            return;
+        }
+        
+        let relPath = selected.value;
+        // relPath is e.g. "reports/foo/bar.json"
+        // Strip "reports/" if present at start (though API handles path joining)
+        // Actually, API expects path relative to "reports/", so we should strip it if the value includes it.
+        // Let's check how rel_path is generated in views.py: os.path.relpath(entry.path, settings.BASE_DIR)
+        // So it likely starts with "reports/..."
+        relPath = relPath.replace(/^reports[\\\/]/, '');
+        
+        const nameInput = document.getElementById('templateReportName');
+        const name = nameInput.value.trim() || selected.value.split(/[\\/]/).pop().replace(/\.(json|js)$/, '');
+        
+        // Use select box if available (removed), otherwise use left sidebar selection
+        const finalDirectoryId = selectedDirectoryId;
+
+        if (!finalDirectoryId) {
+            alert('未选择目标目录，请先在左侧选择目录！');
+            return;
+        }
+
+        // AJAX Call
+        fetch("/api/report/create/template", {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                template_path: relPath,
+                name: name,
+                directory_id: finalDirectoryId
+            })
+        })
+        .then(response => {
+            if (!response.ok) {
+                return response.text().then(text => { throw new Error(text || response.statusText) });
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('创建失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('请求失败: ' + error.message);
+        });
+    }
+
+    function reorderReport(e, reportId, direction) {
+        e.preventDefault();
+        e.stopPropagation();
+        
+        fetch('/api/report/reorder', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}'
+            },
+            body: JSON.stringify({
+                report_id: reportId,
+                direction: direction
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                window.location.reload();
+            } else {
+                alert('排序失败: ' + data.message);
+            }
+        })
+        .catch(err => {
+            console.error(err);
+            alert('请求错误');
+        });
+    }
+
+    function saveExternalLink() {
+        const name = document.getElementById('externalLinkName').value;
+        const url = document.getElementById('externalLinkUrl').value;
+        
+        if (!name || !url) {
+            alert('请填写完整信息');
+            return;
+        }
+
+        if (editingReportId) {
+            // Edit Mode
+            fetch(`/api/report/${editingReportId}/save_meta`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    name: name,
+                    external_url: url
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('更新失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                alert('更新错误: ' + error);
+            });
+        } else {
+            // Create Mode
+            if (!selectedDirectoryId) {
+                alert('请先在左侧选择一个目录！');
+                return;
+            }
+            
+            fetch("/api/report/external/create", {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    name: name,
+                    url: url,
+                    directory_id: selectedDirectoryId
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    window.location.reload();
+                } else {
+                    alert('创建失败: ' + data.message);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('请求失败: ' + error.message);
+            });
+        }
+    }
+</script>
+{% endblock %}

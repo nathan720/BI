@@ -1,0 +1,35 @@
+{% for node in nodes %}
+<div class="list-group-item border-0 p-0">
+    <div class="d-flex align-items-center w-100">
+        <!-- Toggle Icon -->
+        {% if node.children_dirs or node.reports_list %}
+        <a href="#collapse-viewer-{{ node.id }}" data-bs-toggle="collapse" class="text-decoration-none text-dark me-2" aria-expanded="{{ node.is_expanded|yesno:'true,false' }}">
+             <i class="bi bi-caret-down-fill small"></i>
+        </a>
+        {% else %}
+        <span class="me-3"></span>
+        {% endif %}
+
+        <!-- Directory Name -->
+        <span class="flex-grow-1 py-2 text-dark user-select-none">
+            <i class="bi bi-folder-fill me-1 text-warning"></i>
+            {{ node.name }}
+        </span>
+    </div>
+
+    <!-- Children (Dirs + Reports) -->
+    <div class="collapse {% if node.is_expanded %}show{% endif %} ms-3 border-start ps-2" id="collapse-viewer-{{ node.id }}">
+        <!-- Sub-Directories -->
+        {% if node.children_dirs %}
+            {% include "dashboard/report/tree_node_viewer.html" with nodes=node.children_dirs %}
+        {% endif %}
+        
+        <!-- Reports -->
+        {% for report in node.reports_list %}
+        <a href="{% url 'report_detail' report.id %}" class="list-group-item list-group-item-action border-0 py-1 small {% if report.id == current_report_id %}bg-primary text-white rounded{% else %}text-secondary{% endif %}" title="{{ report.name }}">
+            <i class="bi bi-bar-chart-line me-2"></i> {{ report.name }}
+        </a>
+        {% endfor %}
+    </div>
+</div>
+{% endfor %}

@@ -1,0 +1,81 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">数据连接管理</h5>
+        <a href="{% url 'datasource_create' %}" class="btn btn-primary btn-sm">新建连接</a>
+    </div>
+    <div class="card-body">
+        <div class="row">
+            {% for ds in data_sources %}
+            <div class="col-md-4 mb-4">
+                <div class="card h-100 shadow-sm">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start mb-2">
+                            <h5 class="card-title text-primary">{{ ds.name }}</h5>
+                            <span class="badge bg-info text-dark">{{ ds.get_db_type_display }}</span>
+                        </div>
+                        <h6 class="card-subtitle mb-2 text-muted">{{ ds.host }}:{{ ds.port }}</h6>
+                        <p class="card-text">
+                            <strong>数据库:</strong> {{ ds.db_name }}<br>
+                            <strong>用户:</strong> {{ ds.username }}
+                        </p>
+                        <div class="d-flex justify-content-between align-items-center mt-3">
+                            <small class="text-muted">更新于: {{ ds.updated_at|date:"Y-m-d H:i" }}</small>
+                            <div>
+                                <button class="btn btn-sm btn-outline-success" onclick="testConnection('{{ ds.id }}')">测试</button>
+                                <a href="{% url 'datasource_edit' ds.id %}" class="btn btn-sm btn-outline-secondary">编辑</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            {% empty %}
+            <div class="col-12 text-center py-5">
+                <p class="text-muted">暂无数据连接配置</p>
+                <a href="{% url 'datasource_create' %}" class="btn btn-primary">立即创建</a>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function testConnection(id) {
+        // Find the button to show loading state
+        const btn = event.target;
+        const originalText = btn.innerText;
+        btn.disabled = true;
+        btn.innerText = '测试中...';
+
+        // Simulate API call
+        fetch(`/datasource/test/${id}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('连接成功！');
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-success');
+                } else {
+                    alert('连接失败：' + data.message);
+                    btn.classList.remove('btn-outline-success');
+                    btn.classList.add('btn-danger');
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('系统错误，请查看控制台');
+            })
+            .finally(() => {
+                btn.innerText = originalText;
+                btn.disabled = false;
+                // Reset styles after 2 seconds
+                setTimeout(() => {
+                    btn.classList.remove('btn-success', 'btn-danger');
+                    btn.classList.add('btn-outline-success');
+                }, 2000);
+            });
+    }
+</script>
+{% endblock %}

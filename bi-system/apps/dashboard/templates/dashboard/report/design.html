@@ -1,0 +1,2683 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block content %}
+<link href="{% static 'dashboard/css/gridstack.min.css' %}" rel="stylesheet"/>
+<script src="{% static 'dashboard/js/gridstack-all.js' %}"></script>
+<script src="{% static 'dashboard/js/echarts.min.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="{% static 'dashboard/lib/luckysheet/plugins/js/plugin.js' %}?v=3"></script>
+<script src="{% static 'dashboard/lib/luckysheet/luckysheet.umd.js' %}?v=3"></script>
+<link href="{% static 'dashboard/lib/luckysheet/plugins/css/pluginsCss.css' %}?v=3" rel="stylesheet">
+<link href="{% static 'dashboard/lib/luckysheet/plugins/plugins.css' %}?v=3" rel="stylesheet">
+<link href="{% static 'dashboard/lib/luckysheet/css/luckysheet.css' %}?v=3" rel="stylesheet">
+<link href="{% static 'dashboard/lib/luckysheet/assets/iconfont/iconfont.css' %}?v=3" rel="stylesheet">
+<style>
+    .grid-stack-item-content {
+        background-color: #fff;
+        cursor: move;
+    }
+    .chart-placeholder {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+        background: #f8f9fa;
+        border: 1px dashed #dee2e6;
+        color: #adb5bd;
+        flex-direction: column;
+    }
+    .selected-widget {
+        border: 2px solid #0d6efd !important;
+    }
+    .component-btn {
+        width: 80px;
+        height: 80px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        margin: 5px;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+        background: #fff;
+    }
+    .component-btn:hover {
+        background: #f8f9fa;
+        border-color: #0d6efd;
+        color: #0d6efd;
+    }
+    .component-btn i {
+        font-size: 24px;
+        margin-bottom: 5px;
+    }
+    .component-btn span {
+        font-size: 12px;
+    }
+    /* Excel-like Table Style */
+    .excel-table {
+        border-collapse: collapse;
+        width: 100%;
+        font-family: Arial, sans-serif;
+    }
+    .excel-table th, .excel-table td {
+        border: 1px solid #d0d7de;
+        padding: 4px 8px;
+        white-space: nowrap;
+    }
+    .excel-table th {
+        background-color: #f6f8fa;
+        font-weight: 600;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        box-shadow: 0 1px 0 #d0d7de; /* Border for sticky header */
+    }
+    .excel-table tbody tr:nth-child(even) {
+        background-color: #ffffff;
+    }
+    .excel-table tbody tr:nth-child(odd) {
+        background-color: #fafbfc;
+    }
+    .excel-table tbody tr:hover {
+        background-color: #f1f8ff;
+    }
+    .excel-row-num {
+        background-color: #f6f8fa;
+        color: #57606a;
+        text-align: center;
+        width: 40px;
+        user-select: none;
+    }
+
+    /* Luckysheet Container Fixes */
+    .luckysheet-container {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        position: relative;
+    }
+</style>
+<link href="{% static 'dashboard/lib/luckysheet/plugins/css/pluginsCss.css' %}" rel="stylesheet">
+<link href="{% static 'dashboard/lib/luckysheet/css/luckysheet.css' %}" rel="stylesheet">
+<link href="{% static 'dashboard/lib/luckysheet/assets/iconfont/iconfont.css' %}" rel="stylesheet">
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{% url 'report_list' %}">报表列表</a></li>
+            <li class="breadcrumb-item active">{{ report.name }} (设计模式)</li>
+        </ol>
+    </nav>
+    <div>
+        <span class="badge {% if report.status == 'published' %}bg-success{% else %}bg-secondary{% endif %} me-3 align-middle" id="report-status-badge">
+            {{ report.get_status_display }}
+        </span>
+        <button class="btn btn-outline-success me-2" onclick="togglePublish()" id="btn-publish">
+            <i class="bi bi-cloud-upload"></i> {% if report.status == 'published' %}取消发布{% else %}发布{% endif %}
+        </button>
+        <button class="btn btn-outline-primary me-2" onclick="saveReport()">
+            <i class="bi bi-save"></i> 保存
+        </button>
+        <a href="{% url 'report_detail' report.id %}" class="btn btn-primary" target="_blank">
+            <i class="bi bi-eye"></i> 预览
+        </a>
+    </div>
+</div>
+
+<div class="row" style="height: calc(100vh - 150px);">
+    <!-- Left: Components / Datasets -->
+    <div class="col-md-2 border-end overflow-hidden d-flex flex-column" style="max-height: 100%;">
+        <ul class="nav nav-tabs nav-fill mb-2" id="leftTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active py-2" id="components-tab" data-bs-toggle="tab" data-bs-target="#components" type="button" role="tab">组件</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2" id="datasets-tab" data-bs-toggle="tab" data-bs-target="#datasets" type="button" role="tab">数据集</button>
+            </li>
+        </ul>
+        
+        <div class="tab-content flex-grow-1 overflow-auto" id="leftTabsContent">
+            <!-- Components Tab -->
+            <div class="tab-pane fade show active" id="components" role="tabpanel">
+                <div id="component-toolbox" class="d-flex flex-wrap justify-content-center p-2">
+                    <div class="text-center text-muted small py-3">加载中...</div>
+                </div>
+                <div class="alert alert-info small mx-2 mt-2">
+                    <i class="bi bi-info-circle"></i> 点击组件添加到画布
+                </div>
+            </div>
+            
+            <!-- Datasets Tab -->
+            <div class="tab-pane fade" id="datasets" role="tabpanel">
+            <div class="d-flex justify-content-end p-2 border-bottom">
+                <button class="btn btn-sm btn-primary" onclick="openCreateDatasetModal()">
+                    <i class="bi bi-plus"></i> 新建数据集
+                </button>
+            </div>
+            <div class="list-group list-group-flush" id="datasetList">
+                {% for ds in all_datasets %}
+                <div class="list-group-item list-group-item-action d-flex flex-column align-items-stretch p-2" id="dataset-item-{{ ds.id }}">
+                    <div class="d-flex justify-content-between align-items-center w-100">
+                        <div class="d-flex align-items-center text-truncate" style="cursor:pointer; flex: 1;" onclick="toggleDatasetColumns('{{ ds.id }}', this, event)">
+                            <i class="bi bi-chevron-right me-2 text-muted small toggle-icon"></i>
+                            <span class="text-truncate" title="{{ ds.name }}">{{ ds.name }}</span>
+                        </div>
+                        <div class="btn-group btn-group-sm ms-2">
+                            <button class="btn btn-outline-info" onclick="previewDatasetData('{{ ds.id }}')" title="预览数据">
+                                <i class="bi bi-table"></i>
+                            </button>
+                            {% if ds.is_report_specific %}
+                            <button class="btn btn-outline-secondary" onclick="editDataset('{{ ds.id }}')" title="编辑">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="deleteDataset('{{ ds.id }}')" title="删除">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    <div class="dataset-columns-list ps-4 small text-muted mt-1" style="display:none;" id="dataset-columns-{{ ds.id }}">
+                        <!-- columns will be loaded here -->
+                    </div>
+                </div>
+                {% empty %}
+                    <div class="text-center text-muted small py-3">
+                        暂无数据集<br>
+                        <a href="{% url 'dataset_create' %}">去创建</a>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Center: Canvas -->
+    <div class="col-md-7 bg-light p-3 overflow-auto" style="max-height: 100%;">
+        <div class="grid-stack shadow-sm bg-white" style="min-height: 600px;"></div>
+    </div>
+
+    <!-- Right: Properties -->
+    <div class="col-md-3 border-start overflow-hidden d-flex flex-column" style="max-height: 100%; padding: 0;">
+        <h6 class="text-muted p-2 mb-0 border-bottom bg-light">属性配置</h6>
+        
+        <div id="empty-props" class="text-center text-muted py-5 mt-5">
+            请选择一个图表进行配置
+        </div>
+
+        <div id="props-panel" style="display: none; height: 100%; flex-direction: column;">
+            <!-- Tabs -->
+            <ul class="nav nav-tabs nav-fill" id="propTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="data-tab" data-bs-toggle="tab" data-bs-target="#prop-data" type="button" role="tab">数据</button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="style-tab" data-bs-toggle="tab" data-bs-target="#prop-style" type="button" role="tab">样式</button>
+                </li>
+            </ul>
+            
+            <div class="tab-content p-3 overflow-auto flex-grow-1" id="propTabsContent">
+                <!-- Data Tab -->
+                <div class="tab-pane fade show active" id="prop-data" role="tabpanel">
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">数据集</label>
+                        <select class="form-select form-select-sm" id="propDataset" onchange="updateCurrentChart('dataset_id', this.value)">
+                            <option value="">-- 选择数据集 --</option>
+                            {% for ds in all_datasets %}
+                            <option value="{{ ds.id }}">{{ ds.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div id="axis-config" style="display:none;">
+                        <div class="mb-3">
+                            <label class="form-label small text-secondary">分类 / 维度 (X轴)</label>
+                            <select class="form-select form-select-sm mb-1" id="propCategory" onchange="updateCurrentChart('category_col', this.value)">
+                                <option value="">-- 选择列 --</option>
+                            </select>
+                            <!-- X Axis Name moved to Style Tab -->
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-secondary">系列 / 分组 (可选)</label>
+                            <select class="form-select form-select-sm" id="propSeries" onchange="updateCurrentChart('series_col', this.value)">
+                                <option value="">-- 无 --</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-secondary">数据聚合方式</label>
+                            <select class="form-select form-select-sm" id="propAggregate" onchange="updateCurrentChart('aggregate', this.value)">
+                                <option value="none">不聚合 (原始数据)</option>
+                                <option value="sum">求和 (Sum)</option>
+                                <option value="mean">平均值 (Average)</option>
+                                <option value="max">最大值 (Max)</option>
+                                <option value="min">最小值 (Min)</option>
+                                <option value="count">计数 (Count)</option>
+                            </select>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label small text-secondary">数值 / 指标 (Y轴)</label>
+                            
+                            <!-- New Multi-select Dropdown -->
+                            <div class="dropdown mb-2">
+                                <button class="btn btn-sm btn-outline-secondary dropdown-toggle w-100 d-flex justify-content-between align-items-center" type="button" id="yAxisDropdown" data-bs-toggle="dropdown" aria-expanded="false" data-bs-auto-close="outside">
+                                    <span id="yAxisDropdownText">选择指标...</span>
+                                </button>
+                                <ul class="dropdown-menu w-100 p-2 shadow" aria-labelledby="yAxisDropdown" style="max-height: 300px; overflow-y: auto;" id="yAxisDropdownMenu">
+                                    <li class="text-muted small text-center">请先选择数据集</li>
+                                </ul>
+                            </div>
+
+                            <!-- Config Container for Selected Items -->
+                            <div id="propValueContainer" class="border rounded p-0" style="max-height: 300px; overflow-y: auto; background: #fff;">
+                                <div class="text-muted small text-center py-2">请选择指标进行配置</div>
+                            </div>
+                            <!-- Y Axis Name moved to Style Tab -->
+                        </div>
+                        
+                        <!-- Filters Removed -->
+                        
+                    </div>
+                    
+                    <div id="dataset-warning" class="alert alert-warning small py-2" style="display:none;">
+                        <i class="bi bi-exclamation-triangle"></i> 请先绑定数据集以配置数据维度
+                    </div>
+                </div>
+                
+                <!-- Style Tab -->
+                <div class="tab-pane fade" id="prop-style" role="tabpanel">
+                     <div class="mb-3">
+                         <label class="form-label small text-secondary">图表类型</label>
+                         <select class="form-select form-select-sm" id="propType" onchange="updateCurrentChart('type', this.value)">
+                             <!-- Options populated dynamically -->
+                         </select>
+                    </div>
+                    
+                    <div id="propBasicContainer"></div>
+                    <div id="propSpecificContainer"></div>
+                </div>
+            </div>
+            
+            <div class="p-3 border-top bg-light mt-auto">
+                 <button class="btn btn-outline-danger btn-sm w-100" onclick="removeCurrentWidget()">
+                    <i class="bi bi-trash"></i> 删除图表
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Dataset Preview Modal -->
+<div class="modal fade" id="datasetPreviewModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">数据集预览 (前10行)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body overflow-auto" id="datasetPreviewContent" style="max-height: 500px;">
+                <div class="text-center text-muted">加载中...</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Calculation Guide Modal -->
+<div class="modal fade" id="calcGuideModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">数据计算与格式化指南</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <h6>1. 通用数据格式 (Format)</h6>
+                <p class="small text-muted">在“格式”下拉菜单中选择标准格式，系统会自动处理数值。</p>
+                <ul>
+                    <li><strong>整数</strong>: 四舍五入取整 (Math.round)</li>
+                    <li><strong>1位/2位小数</strong>: 保留对应小数位 (toFixed)</li>
+                    <li><strong>百分比</strong>: 乘以100并保留2位小数，添加%</li>
+                    <li><strong>货币</strong>: 添加货币符号 (¥) 并保留2位小数</li>
+                </ul>
+
+                <hr>
+
+                <h6>2. 自定义JS脚本 (Custom JS)</h6>
+                <p class="small text-muted">选择“自定义JS”后，在右侧输入框编写 JavaScript 代码片段。系统会将 <code>value</code> 变量传入您的代码。</p>
+                <div class="alert alert-light border">
+                    <strong>基本语法:</strong>
+                    <pre class="mb-0">return value * 100;</pre>
+                </div>
+                
+                <h6>常用示例:</h6>
+                <table class="table table-bordered table-sm small">
+                    <thead>
+                        <tr>
+                            <th>场景</th>
+                            <th>代码示例</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td>单位转换 (元 -> 万元)</td>
+                            <td><code>return (value / 10000).toFixed(2) + ' 万';</code></td>
+                            <td>除以10000，保留2位小数，加后缀</td>
+                        </tr>
+                        <tr>
+                            <td>条件颜色/文本</td>
+                            <td><code>if(value > 100) return value + ' (高)'; else return value;</code></td>
+                            <td>根据数值大小显示不同内容</td>
+                        </tr>
+                        <tr>
+                            <td>绝对值</td>
+                            <td><code>return Math.abs(value);</code></td>
+                            <td>取绝对值</td>
+                        </tr>
+                        <tr>
+                            <td>取整 (向下)</td>
+                            <td><code>return Math.floor(value);</code></td>
+                            <td>向下取整</td>
+                        </tr>
+                        <tr>
+                            <td>取整 (向上)</td>
+                            <td><code>return Math.ceil(value);</code></td>
+                            <td>向上取整</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Initial Data -->
+<script>
+    let grid = null;
+    let currentWidget = null; // The DOM element
+    let currentChartId = null; // The ID
+    // Initialize config from template variable or empty
+    let chartsConfig = JSON.parse('{{ report.template_config|escapejs }}') || {};
+    let datasetColumns = {}; // Cache for dataset columns
+    
+    // Global Configs Loaded from API
+    let GLOBAL_CHART_CONFIGS = null;
+
+    // --- Unified Formatter ---
+    window.biFormatter = {
+        format: function(value, type, suffix, script) {
+            if (value === null || value === undefined || value === '') return '';
+            
+            // Handle numeric parsing
+            let num = parseFloat(value);
+            if (isNaN(num) && type !== 'custom') return value + (suffix || '');
+
+            let res = value;
+            switch(type) {
+                case 'integer': 
+                    res = Math.round(num); 
+                    break;
+                case 'float1': 
+                    res = num.toFixed(1); 
+                    break;
+                case 'float2': 
+                    res = num.toFixed(2); 
+                    break;
+                case 'percent': 
+                    res = num.toFixed(2) + '%';
+                    break;
+                case 'currency': 
+                    // Chinese Yuan
+                    res = '¥' + num.toFixed(2); 
+                    break;
+                case 'custom':
+                    if (script) {
+                        try {
+                            const fn = new Function("value", script);
+                            res = fn(value);
+                        } catch(e) {
+                            console.error("Custom script error:", e);
+                            res = value;
+                        }
+                    } else {
+                        res = num;
+                    }
+                    break;
+                default:
+                    res = num;
+            }
+            
+            if (suffix && type !== 'percent' && type !== 'currency' && type !== 'custom') {
+                res = res + suffix;
+            } else if (suffix && (type === 'percent' || type === 'currency')) {
+                res = res + suffix;
+            }
+            
+            return res;
+        },
+        
+        // Helper for ECharts Label Formatter
+        // ECharts passes different params for Axis vs Series
+        formatAxis: function(value, type, suffix, script) {
+             return this.format(value, type, suffix, script);
+        },
+        
+        formatSeries: function(params, type, suffix, script) {
+            // params.value could be single value or array [x, y]
+            if (!params) return '';
+            let val = params.value;
+            if (Array.isArray(val) && val.length > 1) {
+                // Usually Y value is at index 1 for Cartesian, but Pyecharts sometimes maps differently.
+                // If it's a simple Bar/Line, data is often just value. 
+                // But if Dataset is used, it might be dimension mapped.
+                // Safe bet: if it's array, check dimension names or assume index 1 if 2D.
+                // However, Pyecharts often passes [x, y].
+                val = val[1]; 
+            }
+            // If val is still object/array, might be complex.
+            if (typeof val === 'object') return ''; // fallback
+            
+            return this.format(val, type, suffix, script);
+        },
+
+        formatTooltip: function(params, type, suffix, script) {
+            // Tooltip params is complex. 
+            let val = params.value;
+            if (Array.isArray(val) && val.length > 1) {
+                val = val[1];
+            }
+            return this.format(val, type, suffix, script);
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Init GridStack
+        grid = GridStack.init({
+            column: 12,
+            cellHeight: 80,
+            margin: 5,
+            acceptWidgets: true,
+            float: true
+        });
+
+        // Add Resize Handler
+        grid.on('resizestop', function(event, el) {
+            const chartId = el.querySelector('.card').id;
+            
+            // 1. Resize ECharts if exists
+            const chartInstance = echarts.getInstanceByDom(document.getElementById(`canvas-${chartId}`));
+            if (chartInstance) {
+                chartInstance.resize();
+            }
+            
+            // 2. Resize Luckysheet if exists (Table Component)
+            // Luckysheet relies on global instance, so we resize the global instance
+            // assuming it corresponds to the resized widget or just resize it anyway.
+            // Note: Luckysheet supports only one instance per page normally.
+            if (typeof luckysheet !== 'undefined' && luckysheet.resize) {
+                 // Check if the resized widget actually contains a luckysheet container
+                 const container = el.querySelector('.luckysheet-container');
+                 if (container) {
+                     luckysheet.resize();
+                 }
+            }
+        });
+
+        grid.on('added', function(e, items) {
+            items.forEach(item => {
+                // Handle Drag-and-Drop items
+                const el = item.el;
+                let id = el.id;
+                
+                // If added via Drag-and-Drop, it won't be in chartsConfig yet
+                if (!id || !chartsConfig[id]) {
+                    const newId = 'chart_' + Date.now();
+                    el.id = newId;
+                    
+                    const type = window.draggedType || 'bar';
+                    window.draggedType = null; // Reset
+                    
+                    const config = {
+                        id: newId,
+                        dataset_id: null,
+                        dataset_name: null,
+                        title: '新图表',
+                        type: type,
+                        w: item.w || 6, h: item.h || 4,
+                        x: item.x, y: item.y,
+                        card_title_show: true
+                    };
+                    chartsConfig[newId] = config;
+                    
+                    // Render Card Structure
+                    el.innerHTML = `
+                        <div class="card h-100 shadow-sm" id="${newId}">
+                            <div class="card-header bg-white fw-bold small text-truncate" data-role="header">
+                                ${config.title}
+                            </div>
+                            <div class="card-body p-2 position-relative" style="overflow: hidden;">
+                                <div class="chart-placeholder small">请先绑定数据集</div>
+                                <div id="canvas-${newId}" class="w-100 h-100 position-absolute top-0 start-0 p-2" style="display:none;"></div>
+                            </div>
+                        </div>
+                    `;
+                    
+                    el.querySelector('.card').onclick = function(e) {
+                        e.stopPropagation();
+                        selectWidget(el);
+                    };
+                    
+                    if (type === 'table' || type === 'Table') {
+                        setTimeout(() => initEmptyLuckysheet(newId), 50);
+                    }
+                }
+                
+                selectWidget(item.el);
+            });
+        });
+        
+        grid.on('change', function(e, items) {
+            saveLayoutToLocal();
+        });
+
+        // Load Global Chart Configs
+        fetchChartConfigs().then(() => {
+            // Load Saved Report
+            loadReport();
+        });
+    });
+
+    // --- API & Config Loading ---
+
+    async function fetchChartConfigs() {
+        try {
+            const response = await fetch('{% url "api_get_chart_configs" %}');
+            const data = await response.json();
+            if (data.success) {
+                GLOBAL_CHART_CONFIGS = data.configs;
+                renderComponentToolbox();
+            } else {
+                console.error("Failed to load chart configs:", data.message);
+                document.getElementById('component-toolbox').innerHTML = `<div class="text-danger small p-2">加载失败: ${data.message}</div>`;
+            }
+        } catch (e) {
+            console.error("Error fetching chart configs:", e);
+            document.getElementById('component-toolbox').innerHTML = `<div class="text-danger small p-2">网络错误</div>`;
+        }
+    }
+
+    function renderComponentToolbox() {
+        const container = document.getElementById('component-toolbox');
+        const typeSelect = document.getElementById('propType');
+        container.innerHTML = '';
+        if (typeSelect) typeSelect.innerHTML = '';
+        
+        if (!GLOBAL_CHART_CONFIGS || !GLOBAL_CHART_CONFIGS.charts) {
+            container.innerHTML = '<div class="text-muted small">无可用组件</div>';
+            return;
+        }
+
+        Object.keys(GLOBAL_CHART_CONFIGS.charts).forEach(type => {
+            const config = GLOBAL_CHART_CONFIGS.charts[type];
+            const btn = document.createElement('div');
+            btn.className = 'component-btn';
+            btn.innerHTML = `
+                <i class="bi ${config.icon || 'bi-bar-chart'}"></i>
+                <span>${config.label}</span>
+            `;
+            // Click support
+            btn.onclick = () => addChartByType(type);
+            
+            // Drag support
+            btn.setAttribute('draggable', 'true');
+            btn.setAttribute('data-type', type);
+            // Use mousedown as backup for dragstart (GridStack/jQuery interference)
+            btn.onmousedown = () => {
+                window.draggedType = type;
+            };
+            btn.ondragstart = (e) => {
+                window.draggedType = type;
+            };
+            
+            container.appendChild(btn);
+
+            // Populate Chart Type Select
+            if (typeSelect) {
+                const option = document.createElement('option');
+                option.value = type;
+                option.innerText = config.label;
+                typeSelect.appendChild(option);
+            }
+        });
+        
+        // Enable Drag-and-Drop from Toolbox
+        GridStack.setupDragIn('.component-btn', { 
+            appendTo: 'body', 
+            helper: 'clone'
+        });
+    }
+
+    // --- Dynamic UI Generation ---
+
+    function renderChartConfigUI(chartType) {
+        if (!GLOBAL_CHART_CONFIGS) return;
+
+        const basicContainer = document.getElementById('propBasicContainer');
+        const specificContainer = document.getElementById('propSpecificContainer');
+        
+        basicContainer.innerHTML = '';
+        specificContainer.innerHTML = '';
+        
+        // Render Specific Chart Configs -> Style Tab (Using Accordion)
+        if (GLOBAL_CHART_CONFIGS.charts && GLOBAL_CHART_CONFIGS.charts[chartType]) {
+            const chartConfig = GLOBAL_CHART_CONFIGS.charts[chartType];
+            
+            // Group fields by 'group' property
+            const groups = {};
+            const groupOrder = [
+                "基础配置", "标题配置", "图例配置", "布局配置", "X轴配置", "Y轴配置", "Y2轴配置",
+                "系列配置", "图形样式", "线条样式", "区域样式", "标签样式",
+                "提示框配置", "工具箱配置", "缩放配置", "视觉映射", "动画配置"
+            ];
+            
+            chartConfig.fields.forEach(field => {
+                const groupName = field.group || '其他配置';
+                if (!groups[groupName]) groups[groupName] = [];
+                groups[groupName].push(field);
+            });
+            
+            // Create Accordion
+            const accordionId = 'configAccordion';
+            const accordion = document.createElement('div');
+            accordion.className = 'accordion accordion-flush'; // Flush style looks cleaner in sidebar
+            accordion.id = accordionId;
+            
+            // Determine render order: predefined groups first, then others
+            const sortedGroupNames = Object.keys(groups).sort((a, b) => {
+                const idxA = groupOrder.indexOf(a);
+                const idxB = groupOrder.indexOf(b);
+                if (idxA !== -1 && idxB !== -1) return idxA - idxB;
+                if (idxA !== -1) return -1;
+                if (idxB !== -1) return 1;
+                return a.localeCompare(b);
+            });
+            
+            sortedGroupNames.forEach((groupName, index) => {
+                const fields = groups[groupName];
+                const itemId = `collapse-${index}`;
+                const headerId = `heading-${index}`;
+                const isFirst = index === 0;
+                
+                const item = document.createElement('div');
+                item.className = 'accordion-item';
+                
+                // Header
+                item.innerHTML = `
+                    <h2 class="accordion-header" id="${headerId}">
+                        <button class="accordion-button ${!isFirst ? 'collapsed' : ''} py-2" type="button" data-bs-toggle="collapse" data-bs-target="#${itemId}" aria-expanded="${isFirst}" aria-controls="${itemId}" style="font-size: 0.9rem; font-weight: bold;">
+                            ${groupName}
+                        </button>
+                    </h2>
+                    <div id="${itemId}" class="accordion-collapse collapse ${isFirst ? 'show' : ''}" aria-labelledby="${headerId}">
+                        <div class="accordion-body p-2">
+                        </div>
+                    </div>
+                `;
+                
+                const body = item.querySelector('.accordion-body');
+                fields.forEach(field => {
+                    const fieldHtml = renderField(field);
+                    body.appendChild(fieldHtml);
+                });
+                
+                accordion.appendChild(item);
+            });
+            
+            specificContainer.appendChild(accordion);
+        }
+    }
+
+    function renderField(field) {
+        const div = document.createElement('div');
+        div.className = 'mb-2';
+        
+        const label = document.createElement('label');
+        label.className = 'form-label small text-secondary mb-1';
+        label.innerText = field.label;
+        div.appendChild(label);
+        
+        let input;
+        const currentVal = getCurrentConfigValue(field.key, field.default);
+
+        if (field.type === 'boolean') {
+            div.className = 'form-check form-switch mb-2';
+            input = document.createElement('input');
+            input.className = 'form-check-input';
+            input.type = 'checkbox';
+            input.checked = currentVal;
+            input.onchange = (e) => updateCurrentChart(field.key, e.target.checked);
+            
+            label.className = 'form-check-label small';
+            div.appendChild(input); 
+            div.appendChild(label);
+            return div; 
+        } else if (field.type === 'select') {
+            input = document.createElement('select');
+            input.className = 'form-select form-select-sm';
+            field.options.forEach(opt => {
+                const option = document.createElement('option');
+                option.value = opt.value;
+                option.innerText = opt.label;
+                input.appendChild(option);
+            });
+            input.value = currentVal;
+            input.onchange = (e) => updateCurrentChart(field.key, e.target.value);
+        } else if (field.type === 'color') {
+            input = document.createElement('input');
+            input.type = 'color';
+            input.className = 'form-control form-control-color w-100';
+            input.value = currentVal;
+            input.onchange = (e) => updateCurrentChart(field.key, e.target.value);
+        } else if (field.type === 'color_list') {
+            // Container for color list
+            div.className = 'mb-2';
+            
+            // Hidden input to store the actual comma-separated string
+            const hiddenInput = document.createElement('input');
+            hiddenInput.type = 'hidden';
+            hiddenInput.value = currentVal;
+            div.appendChild(hiddenInput);
+
+            // Container for color chips
+            const listContainer = document.createElement('div');
+            listContainer.className = 'd-flex flex-wrap gap-1 mb-2';
+            div.appendChild(listContainer);
+
+            // Function to render chips
+            const renderChips = () => {
+                listContainer.innerHTML = '';
+                const colors = hiddenInput.value ? hiddenInput.value.split(',').map(c => c.trim()).filter(c => c) : [];
+                
+                colors.forEach((color, idx) => {
+                    const chip = document.createElement('div');
+                    chip.className = 'd-flex align-items-center border rounded p-1';
+                    chip.style.backgroundColor = '#f8f9fa';
+                    
+                    const colorBox = document.createElement('input');
+                    colorBox.type = 'color';
+                    colorBox.className = 'form-control form-control-color p-0 border-0';
+                    colorBox.value = color;
+                    colorBox.style.width = '24px';
+                    colorBox.style.height = '24px';
+                    colorBox.onchange = (e) => {
+                        colors[idx] = e.target.value;
+                        hiddenInput.value = colors.join(', ');
+                        updateCurrentChart(field.key, hiddenInput.value);
+                    };
+
+                    const removeBtn = document.createElement('span');
+                    removeBtn.className = 'ms-2 cursor-pointer text-danger';
+                    removeBtn.innerHTML = '&times;';
+                    removeBtn.onclick = () => {
+                        colors.splice(idx, 1);
+                        hiddenInput.value = colors.join(', ');
+                        renderChips(); // Re-render
+                        updateCurrentChart(field.key, hiddenInput.value);
+                    };
+                    
+                    chip.appendChild(colorBox);
+                    chip.appendChild(removeBtn);
+                    listContainer.appendChild(chip);
+                });
+            };
+
+            // Initial Render
+            renderChips();
+
+            // Add Button
+            const addBtn = document.createElement('button');
+            addBtn.className = 'btn btn-outline-secondary btn-sm w-100';
+            addBtn.innerHTML = '<i class="bi bi-plus"></i> 添加颜色';
+            addBtn.onclick = () => {
+                const colors = hiddenInput.value ? hiddenInput.value.split(',').map(c => c.trim()).filter(c => c) : [];
+                // Default new color
+                colors.push('#5470c6'); 
+                hiddenInput.value = colors.join(', ');
+                renderChips();
+                updateCurrentChart(field.key, hiddenInput.value);
+            };
+            div.appendChild(addBtn);
+
+            input = null; // We handled it
+        } else if (field.type === 'number') {
+            input = document.createElement('input');
+            input.type = 'number';
+            input.className = 'form-control form-control-sm';
+            if (field.min !== undefined) input.min = field.min;
+            if (field.max !== undefined) input.max = field.max;
+            input.value = currentVal;
+            input.onchange = (e) => updateCurrentChart(field.key, parseFloat(e.target.value));
+        } else {
+            input = document.createElement('input');
+            input.type = 'text';
+            input.className = 'form-control form-control-sm';
+            input.value = currentVal;
+            input.onchange = (e) => updateCurrentChart(field.key, e.target.value);
+        }
+        
+        if (input) {
+            div.appendChild(input);
+        }
+        return div;
+    }
+
+    function getCurrentConfigValue(key, defaultValue) {
+        if (!currentChartId || !chartsConfig[currentChartId]) return defaultValue;
+        const val = chartsConfig[currentChartId][key];
+        return val !== undefined ? val : defaultValue;
+    }
+
+    // --- Core Logic ---
+
+    function addChartByType(type) {
+        const id = 'chart_' + Date.now();
+        const config = {
+            id: id,
+            dataset_id: null,
+            dataset_name: null,
+            title: '新图表',
+            type: type,
+            w: 6, h: 4,
+            card_title_show: true
+        };
+        chartsConfig[id] = config;
+        
+        addWidgetToGrid(id, config);
+    }
+
+    function addChart(datasetId, datasetName) {
+        const id = 'chart_' + Date.now();
+        const config = {
+            id: id,
+            dataset_id: datasetId,
+            dataset_name: datasetName,
+            title: '新图表',
+            type: 'bar',
+            w: 6, h: 4,
+            card_title_show: true
+        };
+        chartsConfig[id] = config;
+        
+        addWidgetToGrid(id, config);
+    }
+
+    function addWidgetToGrid(id, config) {
+        const el = grid.addWidget({
+            w: config.w || 6, 
+            h: config.h || 4,
+            x: config.x,
+            y: config.y,
+            content: `
+                <div class="card h-100 shadow-sm" id="${id}">
+                    <div class="card-header bg-white fw-bold small text-truncate" data-role="header" 
+                        style="${!config.card_title_show ? 'display:none;' : ''} 
+                               ${config.title_color ? 'color:'+config.title_color + ';' : ''}
+                               ${config.card_title_fontsize ? 'font-size:'+config.card_title_fontsize+'px !important;' : ''}
+                               ${config.card_title_align ? 'text-align:'+config.card_title_align + ';' : ''}
+                        ">
+                        ${config.title}
+                    </div>
+                    <div class="card-body p-2 position-relative" style="overflow: hidden;">
+                        <div class="chart-placeholder small">
+                        ${(config.dataset_id || config.type === 'Table' || config.type === 'table') ? (config.dataset_id ? '请配置数据' : '表格组件') : '请先绑定数据集'}
+                    </div>
+                        <div id="canvas-${id}" class="w-100 h-100 position-absolute top-0 start-0 p-2" style="display:none;"></div>
+                    </div>
+                </div>
+            `
+        });
+        
+        el.querySelector('.card').onclick = function(e) {
+            e.stopPropagation();
+            selectWidget(el);
+        };
+        
+        selectWidget(el);
+        
+        // Try to render if config is ready
+        if (config.dataset_id) {
+            refreshPreview(id);
+        } else if (config.type === 'table' || config.type === 'Table') {
+            initEmptyLuckysheet(id);
+        }
+    }
+
+    function selectWidget(el) {
+        document.querySelectorAll('.selected-widget').forEach(w => w.classList.remove('selected-widget'));
+        
+        const card = el.querySelector('.card');
+        card.classList.add('selected-widget');
+        
+        currentWidget = el;
+        currentChartId = card.id;
+        
+        const config = chartsConfig[currentChartId];
+        
+        document.getElementById('empty-props').style.display = 'none';
+        document.getElementById('props-panel').style.display = 'flex'; // Flex for layout
+        
+        // Switch to Data Tab by default if no dataset
+        if (!config.dataset_id) {
+            const tabBtn = document.querySelector('#data-tab');
+            if (tabBtn) {
+                const tab = new bootstrap.Tab(tabBtn);
+                tab.show();
+            }
+        }
+        
+        // Fill form fields
+        // document.getElementById('propTitle').value = config.title || ''; // Title is now in dynamic
+        document.getElementById('propType').value = config.type || 'bar';
+        document.getElementById('propDataset').value = config.dataset_id || '';
+        document.getElementById('propAggregate').value = config.aggregate || 'none';
+        
+        // Removed global Format/Calculation props as they are now per-series or removed
+        
+        const xCalc = document.getElementById('propXDataCalculation');
+        if (xCalc) xCalc.value = config.x_data_calculation || '';
+
+        // Render Dynamic UI (Style Tab)
+        renderChartConfigUI(config.type || 'bar');
+        
+        // Handle Data Binding Visibility
+        const isTable = config.type === 'Table' || config.type === 'table';
+
+        if (config.dataset_id || isTable) {
+            document.getElementById('axis-config').style.display = 'block';
+            document.getElementById('dataset-warning').style.display = 'none';
+            
+            // Adjust UI for Table Type
+            const catContainer = document.getElementById('propCategory').closest('.mb-3');
+            const serContainer = document.getElementById('propSeries').closest('.mb-3');
+            const yLabel = document.getElementById('yAxisDropdown').previousElementSibling; // The label
+
+            if (isTable) {
+                if(catContainer) catContainer.style.display = 'none';
+                if(serContainer) serContainer.style.display = 'none';
+                if(yLabel) yLabel.innerText = '展示列 (Columns)';
+                
+                if (!config.dataset_id) {
+                     // Ensure empty luckysheet is visible
+                     initEmptyLuckysheet(currentChartId);
+                }
+            } else {
+                if(catContainer) catContainer.style.display = 'block';
+                if(serContainer) serContainer.style.display = 'block';
+                if(yLabel) yLabel.innerText = '数值 / 指标 (Y轴)';
+                
+                // If switching back from table to chart, show placeholder if no dataset
+                if (!config.dataset_id) {
+                     const el = document.getElementById(currentChartId).parentElement; // el is grid-stack-item-content
+                     const ph = el ? el.querySelector('.chart-placeholder') : null;
+                     const cvs = el ? el.querySelector(`#canvas-${currentChartId}`) : null;
+                     if(ph) ph.style.display = 'flex';
+                     if(cvs) cvs.style.display = 'none';
+                     
+                     // And show warning since it's a normal chart
+                     document.getElementById('axis-config').style.display = 'none';
+                     document.getElementById('dataset-warning').style.display = 'block';
+                     return; // Stop here
+                }
+            }
+
+            if (config.dataset_id) {
+                loadDatasetColumns(config.dataset_id, config);
+            } else {
+                // For Table without dataset, clear columns list
+                const valContainer = document.getElementById('propValueContainer');
+                if (valContainer) {
+                    valContainer.innerHTML = '<div class="text-muted small text-center py-2">请选择数据集以配置列</div>';
+                }
+            }
+        } else {
+            document.getElementById('axis-config').style.display = 'none';
+            document.getElementById('dataset-warning').style.display = 'block';
+        }
+    }
+
+    async function updateCurrentChart(key, value) {
+        if (!currentChartId) return;
+        
+        const config = chartsConfig[currentChartId];
+        config[key] = value;
+        saveLayoutToLocal();
+        
+        // Handle UI updates
+        if (key === 'title') {
+            const header = currentWidget.querySelector('[data-role="header"]');
+            if (header) header.innerText = value;
+        }
+        
+        if (key === 'card_title_show') {
+             const header = currentWidget.querySelector('[data-role="header"]');
+             if (header) {
+                 header.style.display = value ? 'block' : 'none';
+                 setTimeout(() => {
+                     const chartInstance = echarts.getInstanceByDom(document.getElementById(`canvas-${currentChartId}`));
+                     if (chartInstance) chartInstance.resize();
+                 }, 100);
+             }
+        }
+        
+        if (key === 'title_color') {
+            const header = currentWidget.querySelector('[data-role="header"]');
+            if (header) header.style.color = value;
+        }
+
+        if (key === 'card_title_fontsize') {
+            const header = currentWidget.querySelector('[data-role="header"]');
+            if (header) header.style.fontSize = value + 'px';
+        }
+
+        if (key === 'card_title_align') {
+            const header = currentWidget.querySelector('[data-role="header"]');
+            if (header) header.style.textAlign = value;
+        }
+
+        if (key === 'type') {
+            renderChartConfigUI(value);
+            
+            // Adjust UI for Table Type immediately
+            const isTable = value === 'Table' || value === 'table';
+            const catContainer = document.getElementById('propCategory').closest('.mb-3');
+            const serContainer = document.getElementById('propSeries').closest('.mb-3');
+            const yLabel = document.getElementById('yAxisDropdown').previousElementSibling;
+
+            if (isTable) {
+                if(catContainer) catContainer.style.display = 'none';
+                if(serContainer) serContainer.style.display = 'none';
+                if(yLabel) yLabel.innerText = '展示列 (Columns)';
+                
+                // Show empty Luckysheet if no dataset
+                if (!config.dataset_id) {
+                     initEmptyLuckysheet(currentChartId);
+                }
+            } else {
+                if(catContainer) catContainer.style.display = 'block';
+                if(serContainer) serContainer.style.display = 'block';
+                if(yLabel) yLabel.innerText = '数值 / 指标 (Y轴)';
+                
+                // If switching back to chart and no dataset, show placeholder
+                if (!config.dataset_id) {
+                     const el = document.getElementById(currentChartId).parentElement;
+                     const ph = el ? el.querySelector('.chart-placeholder') : null;
+                     const cvs = el ? el.querySelector(`#canvas-${currentChartId}`) : null;
+                     if(ph) {
+                         ph.style.display = 'flex';
+                         ph.innerText = '请先绑定数据集';
+                     }
+                     if(cvs) cvs.style.display = 'none';
+                }
+            }
+        }
+
+        if (key === 'dataset_id') {
+            // Dataset changed
+            if (value) {
+                document.getElementById('axis-config').style.display = 'block';
+                document.getElementById('dataset-warning').style.display = 'none';
+                
+                // Preserve existing selections if possible
+                const oldCategory = config.category_col;
+                const oldValue = config.value_col;
+                const oldSeries = config.series_col;
+                
+                await loadDatasetColumns(value, config);
+                
+                // Try to restore selections
+                const newCols = datasetColumns[value] || [];
+                
+                if (oldCategory && newCols.includes(oldCategory)) {
+                     config.category_col = oldCategory;
+                     document.getElementById('propCategory').value = oldCategory;
+                } else {
+                     config.category_col = '';
+                     document.getElementById('propCategory').value = '';
+                }
+                
+                if (oldSeries && newCols.includes(oldSeries)) {
+                     config.series_col = oldSeries;
+                     document.getElementById('propSeries').value = oldSeries;
+                } else {
+                     config.series_col = '';
+                     document.getElementById('propSeries').value = '';
+                }
+                
+                // For value_col (which might be multiple), we need to check carefully
+                // But since value_col is a single string in config (e.g. 'sales' or 'sales,profit')
+                // We should parse it if it's comma separated? Currently logic seems to be simpler.
+                // Wait, updateValueCol() updates config.value_col based on checked boxes.
+                // We should check boxes if they exist in new columns.
+                
+                const oldValues = oldValue ? oldValue.split(',') : [];
+                const validValues = oldValues.filter(v => newCols.includes(v));
+                
+                if (validValues.length > 0) {
+                     config.value_col = validValues.join(',');
+                     // Check the boxes
+                     validValues.forEach(v => {
+                          const safeCol = v.replace(/"/g, '&quot;');
+                          const cb = document.querySelector(`#propValueContainer input[value="${safeCol}"]`);
+                          if (cb) cb.checked = true;
+                     });
+                } else {
+                     config.value_col = '';
+                }
+                
+                // Reset other things that are strictly dataset dependent
+                config.filters = []; // Filters are complex to map, better reset
+                // config.aggregate = 'none'; // Keep aggregate as it is likely reusable
+                // config.series_names = {}; // Keep?
+                // config.series_formats = {}; // Keep?
+                // config.series_calculations = {}; // Keep?
+                
+                const ph = currentWidget.querySelector('.chart-placeholder');
+                if (ph) ph.innerText = "请配置数据";
+            } else {
+                document.getElementById('axis-config').style.display = 'none';
+                document.getElementById('dataset-warning').style.display = 'block';
+                
+                const ph = currentWidget.querySelector('.chart-placeholder');
+                if (ph) ph.innerText = "请先绑定数据集";
+                document.getElementById(`canvas-${currentChartId}`).style.display = 'none';
+                if (ph) ph.style.display = 'flex';
+            }
+        }
+        
+        // Refresh Preview
+        if (config.dataset_id && config.category_col && (config.value_col || config.type === 'table')) {
+            refreshPreview(currentChartId);
+        }
+    }
+
+    // --- Drag and Drop for Columns ---
+    function handleColumnDragStart(event, column) {
+        event.dataTransfer.setData("text/plain", column);
+        event.dataTransfer.effectAllowed = "copy";
+        window.draggedColumn = column;
+    }
+
+    async function toggleDatasetColumns(datasetId, element, event) {
+        // Prevent event bubbling
+        if (event) {
+             event.stopPropagation();
+             if (event.target.tagName === 'BUTTON' || event.target.closest('button')) return;
+        }
+
+        const columnsContainer = document.getElementById(`dataset-columns-${datasetId}`);
+        const icon = element.querySelector('.toggle-icon');
+        
+        if (columnsContainer.style.display === 'none') {
+            // Show
+            columnsContainer.style.display = 'block';
+            if (icon) {
+                icon.classList.remove('bi-chevron-right');
+                icon.classList.add('bi-chevron-down');
+            }
+            
+            // Check if we need to load columns
+            // Always try to load if cache is missing or empty (allows retry)
+            // Or if container is empty
+            const hasCache = datasetColumns[datasetId] && datasetColumns[datasetId].length > 0;
+            
+            if (!hasCache || columnsContainer.innerHTML.trim() === '') {
+                 columnsContainer.innerHTML = '<div class="text-center py-1"><div class="spinner-border spinner-border-sm text-secondary" role="status"></div></div>';
+                 try {
+                    // Fetch if not in cache or cache is empty
+                    if (!hasCache) {
+                        const url = "{% url 'api_get_dataset_columns' 0 %}".replace('0', datasetId);
+                        const res = await fetch(url);
+                        const data = await res.json();
+                        if (data.success) {
+                            datasetColumns[datasetId] = data.columns;
+                        } else {
+                            throw new Error(data.message || 'Fetch failed');
+                        }
+                    }
+                    
+                    const cols = datasetColumns[datasetId] || [];
+                    if (cols.length === 0) {
+                        columnsContainer.innerHTML = '<div class="text-muted small ps-2">无列信息</div>';
+                    } else {
+                        // Render columns with draggable attributes
+                        columnsContainer.innerHTML = cols.map(c => `
+                            <div class="text-truncate px-2 py-1 dataset-column-item" 
+                                 title="${c}" 
+                                 draggable="true" 
+                                 ondragstart="handleColumnDragStart(event, '${c.replace(/'/g, "\\'")}')"
+                                 style="cursor: grab;">
+                                <i class="bi bi-layout-three-columns small me-1 text-primary opacity-50"></i> ${c}
+                            </div>
+                        `).join('');
+                    }
+                 } catch (e) {
+                     console.error("Failed to load columns:", e);
+                     columnsContainer.innerHTML = `<div class="text-danger small ps-2">加载失败: ${e.message}</div>`;
+                     // Clear cache on error so we retry next time
+                     delete datasetColumns[datasetId];
+                 }
+            }
+        } else {
+            // Hide
+            columnsContainer.style.display = 'none';
+            if (icon) {
+                icon.classList.remove('bi-chevron-down');
+                icon.classList.add('bi-chevron-right');
+            }
+        }
+    }
+
+    async function loadDatasetColumns(datasetId, config) {
+        const catSelect = document.getElementById('propCategory');
+        const serSelect = document.getElementById('propSeries');
+        const yDropdownMenu = document.getElementById('yAxisDropdownMenu');
+        const yDropdownText = document.getElementById('yAxisDropdownText');
+        const valContainer = document.getElementById('propValueContainer');
+        
+        catSelect.innerHTML = '<option value="">-- 选择列 --</option>';
+        serSelect.innerHTML = '<option value="">-- 无 --</option>';
+        yDropdownMenu.innerHTML = '';
+        valContainer.innerHTML = '';
+        yDropdownText.innerText = '选择指标...';
+        
+        if (!datasetColumns[datasetId]) {
+            try {
+                // Use Django's URL tag with a placeholder, then replace it with the actual ID
+                const url = "{% url 'api_get_dataset_columns' 0 %}".replace('0', datasetId);
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.success) {
+                    datasetColumns[datasetId] = data.columns;
+                }
+            } catch(e) {
+                console.error(e);
+            }
+        }
+        
+        const cols = datasetColumns[datasetId] || [];
+        
+        // Clear again to prevent duplicates from race conditions
+        catSelect.innerHTML = '<option value="">-- 选择列 --</option>';
+        serSelect.innerHTML = '<option value="">-- 无 --</option>';
+        yDropdownMenu.innerHTML = '';
+        valContainer.innerHTML = '';
+        
+        if (cols.length === 0) {
+             valContainer.innerHTML = '<div class="text-muted small text-center py-2">无数据列</div>';
+             yDropdownMenu.innerHTML = '<li class="text-muted small text-center p-2">无数据列</li>';
+        }
+        
+        // Populate Dropdown
+        cols.forEach((col, idx) => {
+            catSelect.innerHTML += `<option value="${col}">${col}</option>`;
+            serSelect.innerHTML += `<option value="${col}">${col}</option>`;
+            
+            const safeId = 'y_chk_' + idx + '_' + col.replace(/[^a-zA-Z0-9]/g, '_');
+            const li = document.createElement('li');
+            li.className = 'px-2 py-1';
+            li.innerHTML = `
+                <div class="form-check mb-0">
+                    <input class="form-check-input y-axis-checkbox" type="checkbox" value="${col}" id="${safeId}">
+                    <label class="form-check-label small text-break" for="${safeId}" style="cursor:pointer;">
+                        ${col}
+                    </label>
+                </div>
+            `;
+            yDropdownMenu.appendChild(li);
+            
+            // Add listener
+            li.querySelector('input').addEventListener('change', function() {
+                updateYAxisSelection();
+            });
+        });
+        
+        catSelect.value = config.category_col || config.x_axis || '';
+        serSelect.value = config.series_col || '';
+        
+        // Handle multi-value select for value_col (checkboxes)
+        const currentVal = config.value_col || config.y_axis || [];
+        const valArray = Array.isArray(currentVal) ? currentVal : [currentVal];
+        
+        let selectedCount = 0;
+        const inputs = yDropdownMenu.querySelectorAll('.y-axis-checkbox');
+        inputs.forEach(inp => {
+            if (valArray.includes(inp.value)) {
+                inp.checked = true;
+                selectedCount++;
+            }
+        });
+        
+        if (selectedCount > 0) {
+            yDropdownText.innerText = `已选择 ${selectedCount} 项`;
+        }
+        
+        // Render Config Cards
+        renderYAxisConfigs(valArray, config);
+    }
+
+    function updateYAxisSelection() {
+        const inputs = document.querySelectorAll('.y-axis-checkbox:checked');
+        const selected = Array.from(inputs).map(cb => cb.value);
+        
+        const yDropdownText = document.getElementById('yAxisDropdownText');
+        yDropdownText.innerText = selected.length > 0 ? `已选择 ${selected.length} 项` : '选择指标...';
+        
+        if (selected.length === 1) {
+            updateCurrentChart('value_col', selected[0]);
+        } else {
+            updateCurrentChart('value_col', selected);
+        }
+        
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        renderYAxisConfigs(selected, config);
+    }
+
+    function renderYAxisConfigs(selectedCols, config) {
+        const container = document.getElementById('propValueContainer');
+        container.innerHTML = '';
+        container.className = 'd-flex flex-column gap-2';
+        
+        if (!selectedCols || selectedCols.length === 0) {
+            container.innerHTML = '<div class="text-muted small text-center py-4">请选择指标进行配置</div>';
+            return;
+        }
+
+        const isTable = config.type === 'table';
+
+        selectedCols.forEach(col => {
+            if (!col) return;
+            
+            const alias = (config.series_names && config.series_names[col]) || '';
+            const fmt = (config.series_formats && config.series_formats[col]) || 'none';
+            const calc = (config.series_calculations && config.series_calculations[col]) || '';
+            const suff = (config.series_suffixes && config.series_suffixes[col]) || '';
+            const escapedCol = col.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            
+            const calcPlaceholder = (fmt === 'custom') ? 'JS函数体' : '计算(÷100)';
+            const calcTitle = (fmt === 'custom') ? '输入JS函数体，例如 return value*100' : '数据计算公式 (例如 /10000)';
+
+            // Series Type and Axis
+            const sType = (config.series_types && config.series_types[col]) || 'bar';
+            const sAxis = (config.series_axis && config.series_axis[col]) || 'left';
+
+            // Label Style
+            const lStyle = (config.series_label_styles && config.series_label_styles[col]) || {};
+            const globalShow = config.label_show === true;
+            const lShow = (lStyle.show !== undefined) ? lStyle.show : globalShow;
+            const lColor = lStyle.color || '#000000';
+
+            const item = document.createElement('div');
+            item.className = 'card shadow-sm border-light mb-1';
+            
+            let chartConfigHtml = '';
+            if (!isTable) {
+                chartConfigHtml = `
+                    <div class="d-flex align-items-center gap-2 mt-2 pt-2 border-top border-light border-opacity-50">
+                        <div class="d-flex gap-1 flex-grow-1">
+                            <select class="form-select form-select-sm border-0 bg-light py-0 ps-2 pe-3 text-muted" style="font-size: 11px; width: auto;" onchange="updateSeriesType('${escapedCol}', this.value)" title="图表类型">
+                                <option value="bar" ${sType==='bar'?'selected':''}>📊 柱状</option>
+                                <option value="line" ${sType==='line'?'selected':''}>📈 折线</option>
+                                <option value="scatter" ${sType==='scatter'?'selected':''}>∴ 散点</option>
+                            </select>
+                            <select class="form-select form-select-sm border-0 bg-light py-0 ps-2 pe-3 text-muted" style="font-size: 11px; width: auto;" onchange="updateSeriesAxis('${escapedCol}', this.value)" title="轴向">
+                                <option value="left" ${sAxis==='left'?'selected':''}>⬅ 左轴</option>
+                                <option value="right" ${sAxis==='right'?'selected':''}>➡ 右轴</option>
+                            </select>
+                        </div>
+                        
+                        <div class="d-flex align-items-center gap-2 border-start border-light ps-2">
+                            <div class="form-check form-switch min-h-0 mb-0 d-flex align-items-center gap-1" title="显示标签">
+                                <input class="form-check-input mt-0" type="checkbox" role="button" style="width: 24px; height: 14px;" 
+                                    ${lShow ? 'checked' : ''} 
+                                    onchange="updateSeriesLabelStyle('${escapedCol}', 'show', this.checked)">
+                            </div>
+                            <input type="color" class="form-control form-control-color border-0 p-0 rounded-circle" style="width: 16px; height: 16px; cursor: pointer;" 
+                                value="${lColor}" 
+                                title="标签颜色"
+                                onchange="updateSeriesLabelStyle('${escapedCol}', 'color', this.value)">
+                        </div>
+                    </div>
+                `;
+            }
+
+            item.innerHTML = `
+                <div class="card-body p-2">
+                    <!-- Row 1: Header -->
+                    <div class="d-flex align-items-center gap-2 mb-2">
+                        <span class="badge bg-secondary bg-opacity-10 text-dark border border-light fw-normal px-2 py-1 text-truncate" style="max-width: 100px; font-size: 11px;">${col}</span>
+                        <input type="text" class="form-control form-control-sm border-0 border-bottom border-light rounded-0 px-1 py-0 bg-transparent" 
+                            style="font-size: 12px; box-shadow: none;" 
+                            placeholder="显示名称" 
+                            value="${alias}"
+                            onchange="updateSeriesName('${escapedCol}', this.value)">
+                        <button class="btn btn-sm btn-link text-muted p-0 ms-auto opacity-50 hover-opacity-100" onclick="removeYAxisItem('${escapedCol}')" title="移除指标">
+                            <i class="bi bi-x-lg" style="font-size: 12px;"></i>
+                        </button>
+                    </div>
+
+                    <!-- Row 2: Data Config -->
+                    <div class="row g-1 align-items-center">
+                        <div class="col-4">
+                            <select class="form-select form-select-sm border-light bg-light py-0 px-2 text-muted" style="font-size: 11px; height: 24px;" onchange="updateSeriesFormat('${escapedCol}', this.value, this)" title="数据格式">
+                                <option value="none" ${fmt==='none'?'selected':''}>默认格式</option>
+                                <option value="integer" ${fmt==='integer'?'selected':''}>1,000</option>
+                                <option value="float1" ${fmt==='float1'?'selected':''}>0.1</option>
+                                <option value="float2" ${fmt==='float2'?'selected':''}>0.01</option>
+                                <option value="percent" ${fmt==='percent'?'selected':''}>%</option>
+                                <option value="currency" ${fmt==='currency'?'selected':''}>¥</option>
+                                <option value="custom" ${fmt==='custom'?'selected':''}>ƒ(x)</option>
+                            </select>
+                        </div>
+                        <div class="col-3">
+                            <input type="text" class="form-control form-control-sm border-light bg-light py-0 px-2 text-muted" style="font-size: 11px; height: 24px;" 
+                                placeholder="后缀" value="${suff}" 
+                                title="数值后缀"
+                                onchange="updateSeriesSuffix('${escapedCol}', this.value)">
+                        </div>
+                        <div class="col-5">
+                            <div class="input-group input-group-sm">
+                                <span class="input-group-text border-light bg-light py-0 px-1 text-muted" style="height: 24px; font-size: 10px;">÷</span>
+                                <input type="text" class="form-control form-control-sm border-light bg-light py-0 px-2 text-muted" style="font-size: 11px; height: 24px;" 
+                                    placeholder="${fmt === 'custom' ? 'return val*100' : '10000'}" value="${calc}" 
+                                    title="${calcTitle}"
+                                    onchange="updateSeriesCalculation('${escapedCol}', this.value)">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Row 3: Visuals -->
+                    ${chartConfigHtml}
+                </div>
+            `;
+            container.appendChild(item);
+        });
+    }
+
+    window.removeYAxisItem = function(col) {
+        const inputs = document.querySelectorAll('.y-axis-checkbox');
+        for(let i=0; i<inputs.length; i++) {
+            if(inputs[i].value === col) {
+                inputs[i].checked = false;
+                break;
+            }
+        }
+        updateYAxisSelection();
+    }
+    
+    async function previewDatasetData(id) {
+        const modal = new bootstrap.Modal(document.getElementById('datasetPreviewModal'));
+        const content = document.getElementById('datasetPreviewContent');
+        content.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><div class="mt-2 text-muted">加载数据中...</div></div>';
+        modal.show();
+        
+        try {
+            const url = "{% url 'api_preview_dataset_data' 0 %}".replace('0', id);
+            const res = await fetch(url);
+            const data = await res.json();
+            
+            if (data.success) {
+                if (data.data.length === 0) {
+                    content.innerHTML = '<div class="alert alert-info">暂无数据</div>';
+                    return;
+                }
+                
+                // Build Table
+                let html = '<table class="table table-bordered table-sm table-striped small">';
+                html += '<thead><tr>';
+                data.columns.forEach(col => html += `<th>${col}</th>`);
+                html += '</tr></thead><tbody>';
+                
+                data.data.forEach(row => {
+                    html += '<tr>';
+                    data.columns.forEach((col, idx) => {
+                         let val = Array.isArray(row) ? row[idx] : row[col];
+                         html += `<td>${val !== null && val !== undefined ? val : ''}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                content.innerHTML = html;
+            } else {
+                content.innerHTML = `<div class="alert alert-danger">加载失败: ${data.message}</div>`;
+            }
+        } catch (e) {
+            content.innerHTML = `<div class="alert alert-danger">请求错误: ${e.message}</div>`;
+        }
+    }
+
+    window.updateSeriesName = function(col, name) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.series_names) config.series_names = {};
+        config.series_names[col] = name;
+        saveLayoutToLocal();
+        // Trigger preview refresh if data is configured
+        if (config.dataset_id && config.category_col && (config.value_col || config.type === 'table')) {
+            refreshPreview(currentChartId);
+        }
+    }
+
+    window.updateSeriesFormat = function(col, type, selectEl) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.series_formats) config.series_formats = {};
+        config.series_formats[col] = type;
+        saveLayoutToLocal();
+
+        // Update UI for calculation input
+        if (selectEl) {
+            let calcInput = null;
+            
+            // New SaaS Layout: select is in col-4, calc input is in col-5
+            const row = selectEl.closest('.row');
+            if (row) {
+                 const col5 = row.querySelector('.col-5');
+                 if (col5) {
+                     calcInput = col5.querySelector('input');
+                 }
+            }
+
+            // Fallback for old layouts
+            if (!calcInput) {
+                const nextEl = selectEl.nextElementSibling;
+                if (nextEl) {
+                    if (nextEl.tagName === 'INPUT') {
+                        calcInput = nextEl;
+                    } else if (nextEl.tagName === 'DIV') {
+                        calcInput = nextEl.querySelector('input');
+                    }
+                }
+            }
+
+            if (calcInput) {
+                if (type === 'custom') {
+                    calcInput.placeholder = 'JS函数体';
+                    calcInput.title = '输入JS函数体，例如 return value*100';
+                } else {
+                    calcInput.placeholder = '计算(÷100)';
+                    calcInput.title = '数据计算公式 (例如 /10000)';
+                }
+            }
+        }
+
+        // Trigger preview refresh if data is configured
+        if (config.dataset_id && config.category_col && (config.value_col || config.type === 'table')) {
+            refreshPreview(currentChartId);
+        }
+    }
+
+    window.updateSeriesCalculation = function(col, calc) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.series_calculations) config.series_calculations = {};
+        config.series_calculations[col] = calc;
+        saveLayoutToLocal();
+        if (config.dataset_id && config.category_col && (config.value_col || config.type === 'table')) {
+            refreshPreview(currentChartId);
+        }
+    }
+
+    window.updateSeriesSuffix = function(col, suff) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.series_suffixes) config.series_suffixes = {};
+        config.series_suffixes[col] = suff;
+        saveLayoutToLocal();
+        if (config.dataset_id && config.category_col && (config.value_col || config.type === 'table')) {
+            refreshPreview(currentChartId);
+        }
+    }
+
+    window.updateSeriesLabelStyle = function(col, key, value) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.series_label_styles) config.series_label_styles = {};
+        if (!config.series_label_styles[col]) config.series_label_styles[col] = {};
+        
+        if (key === 'size') {
+             config.series_label_styles[col][key] = parseFloat(value);
+        } else {
+             config.series_label_styles[col][key] = value;
+        }
+        
+        saveLayoutToLocal();
+        if (config.dataset_id && config.category_col && (config.value_col || config.type === 'table')) {
+            refreshPreview(currentChartId);
+        }
+    }
+
+    window.updateSeriesType = function(col, type) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.series_types) config.series_types = {};
+        config.series_types[col] = type;
+        saveLayoutToLocal();
+        if (config.dataset_id && config.category_col && (config.value_col || config.type === 'table')) {
+            refreshPreview(currentChartId);
+        }
+    }
+
+    window.updateSeriesAxis = function(col, axis) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.series_axis) config.series_axis = {};
+        config.series_axis[col] = axis;
+        
+        // If user sets an axis to 'right', automatically switch grid_type to multi_yaxis if not already set
+        // But maybe it's better to let charts.py handle it implicitly.
+        // However, if grid_type is 'simple', charts.py might ignore axis settings.
+        // Let's ensure charts.py uses axis settings if present.
+        
+        saveLayoutToLocal();
+        if (config.dataset_id && config.category_col && (config.value_col || config.type === 'table')) {
+            refreshPreview(currentChartId);
+        }
+    }
+
+    // Filter logic removed
+
+    async function refreshPreview(id) {
+        const config = chartsConfig[id];
+        if (!config) return;
+        
+        const canvas = document.getElementById(`canvas-${id}`);
+        if (!canvas) return;
+
+        // Show canvas and hide placeholder to ensure ECharts can calculate dimensions
+        canvas.style.display = 'block';
+        const widget = document.getElementById(id);
+        const placeholder = widget ? widget.querySelector('.chart-placeholder') : null;
+        if (placeholder) placeholder.style.display = 'none';
+        
+        let myChart = echarts.getInstanceByDom(canvas);
+        if (!myChart) {
+            myChart = echarts.init(canvas);
+        }
+        
+        myChart.showLoading();
+        
+        // Timeout handling (15 seconds)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 15000);
+        
+        try {
+            const res = await fetch('{% url "api_preview_chart" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(config),
+                signal: controller.signal
+            });
+            clearTimeout(timeoutId);
+            
+            if (!res.ok) {
+                throw new Error(`Server error: ${res.status}`);
+            }
+            
+            const data = await res.json();
+                
+                if (data.success) {
+                    myChart.hideLoading(); // Hide loading before rendering
+                    
+                    if (config.type === 'table' || config.type === 'Table') {
+                        myChart.dispose(); // Dispose chart instance for table
+                        
+                        // Use renderTable to get the container HTML
+                        const containerHtml = renderTable(data.data.columns, data.data.rows);
+                        canvas.innerHTML = containerHtml;
+                        
+                        // Extract ID from the HTML string (simple regex or parsing)
+                        // renderTable returns: <div id="ls-..." ...></div>
+                        const match = containerHtml.match(/id="([^"]+)"/);
+                        if (match && match[1]) {
+                            // Delay slightly to ensure DOM is updated
+                            setTimeout(() => {
+                                renderLuckysheet(match[1], data.data.columns, data.data.rows, id);
+                            }, 0);
+                        }
+                    } else {
+                        // Ensure options is valid
+                        if (!data.options) {
+                            throw new Error("No options returned from server");
+                        }
+                        // Use new Function to parse options that might contain JS functions (dump_options_with_quotes)
+                        const options = new Function("return " + data.options)();
+                        myChart.setOption(options, true);
+                        myChart.resize();
+                    }
+                } else {
+                myChart.hideLoading();
+                const errorMsg = data.message || 'Unknown error';
+                console.error("Preview failed:", errorMsg);
+                // Show error in canvas
+                canvas.innerHTML = `<div class="d-flex align-items-center justify-content-center h-100 text-danger p-3 text-center">
+                    <div>
+                        <i class="bi bi-exclamation-triangle fs-2"></i><br>
+                        <span class="small">${errorMsg}</span>
+                    </div>
+                </div>`;
+                // Dispose chart if we overwrote innerHTML
+                if(myChart) myChart.dispose();
+            }
+            
+        } catch (e) {
+            clearTimeout(timeoutId);
+            if (myChart) myChart.hideLoading();
+            console.error("Preview Error:", e);
+            
+            let showMsg = e.message;
+            if (e.name === 'AbortError') {
+                showMsg = "请求超时，请检查网络或数据量";
+            }
+            
+            canvas.innerHTML = `<div class="d-flex align-items-center justify-content-center h-100 text-danger p-3 text-center">
+                <div>
+                    <i class="bi bi-exclamation-circle fs-2"></i><br>
+                    <span class="small">加载错误: ${showMsg}</span>
+                </div>
+            </div>`;
+            if(myChart) myChart.dispose();
+        }
+    }
+    
+    // --- Render Luckysheet ---
+    function renderLuckysheet(containerId, cols, rows, chartId) {
+        currentLuckysheetChartId = chartId;
+        
+        // Check if Luckysheet is loaded
+        if (typeof luckysheet === 'undefined') {
+            const container = document.getElementById(containerId);
+            if (container) {
+                container.innerHTML = `
+                    <div class="d-flex flex-column align-items-center justify-content-center h-100 text-danger text-center p-3">
+                        <i class="bi bi-cloud-slash fs-1 mb-2"></i>
+                        <div class="fw-bold">Luckysheet 未加载</div>
+                        <div class="small text-muted">无法加载表格组件资源。请检查网络连接或刷新页面。</div>
+                        <div class="small text-muted mt-1">Local Resource Missing</div>
+                    </div>
+                `;
+            }
+            return;
+        }
+
+        // Prepare data for Luckysheet
+        // 1. Convert columns to first row
+        let sheetData = [];
+        let headerRow = cols.map(c => ({ v: c, ct: { fa: "General", t: "g" }, m: c, bg: "#f6f8fa", bl: 1 }));
+        sheetData.push(headerRow);
+
+        // 2. Convert rows
+        rows.forEach((r, rIdx) => {
+            let rowData = [];
+            cols.forEach((c, cIdx) => {
+                let val = Array.isArray(r) ? r[cIdx] : r[c];
+                val = val !== null && val !== undefined ? val : "";
+                rowData.push({ v: val, ct: { fa: "General", t: "g" }, m: String(val) });
+            });
+            sheetData.push(rowData);
+        });
+
+        // Initialize Luckysheet
+        const options = {
+            container: containerId, 
+            lang: 'zh',
+            showinfobar: false,
+            showsheetbar: false,
+            showstatisticBar: false,
+            showtoolbar: false, // Hide toolbar for preview/small mode
+            enableAddRow: false,
+            enableAddBackTop: false,
+            row: sheetData.length + 5,
+            column: cols.length + 2,
+            gridKey: containerId, // Unique key for this instance
+            data: [{
+                "name": "Sheet1",
+                "color": "",
+                "status": 1,
+                "order": 0,
+                "data": [], 
+                "celldata": [],
+                "config": {},
+                "index": 0
+            }],
+            hook: {
+                updated: function(oper) {
+                    if (chartId && chartsConfig[chartId]) {
+                        // Debounce or check operation type if needed to avoid loops
+                        // oper.type can tell us what changed (e.g., 'datachange', 'resize')
+                        // For now, simple try-catch and avoiding unnecessary updates
+                        try {
+                            // Check if luckysheet is actually fully initialized?
+                            if (typeof luckysheet === 'undefined' || !luckysheet.getAllSheets) return;
+
+                            const all = luckysheet.getAllSheets();
+                            if (all && all.length > 0) {
+                                // Save config (column width, hidden, etc.)
+                                chartsConfig[chartId].luckysheet_data = all[0].config;
+                                // If no dataset is bound, save the cell data (static mode)
+                                if (!chartsConfig[chartId].dataset_id) {
+                                    chartsConfig[chartId].luckysheet_celldata = all[0].celldata;
+                                }
+                            }
+                        } catch(e) { 
+                            // console.error("Luckysheet hook error:", e); // Suppress frequent errors
+                        }
+                    }
+                },
+                resizeColumn: function(cid, cwidth) {
+                    if (chartId && chartsConfig[chartId]) {
+                        try {
+                            const all = luckysheet.getAllSheets();
+                            if (all && all.length > 0) {
+                                chartsConfig[chartId].luckysheet_data = all[0].config;
+                            }
+                        } catch(e) { console.error("Luckysheet resize hook error:", e); }
+                    }
+                }
+            }
+        }
+        
+        // Load existing config if available
+        if (chartId && chartsConfig[chartId]) {
+             if (chartsConfig[chartId].luckysheet_data) {
+                 options.data[0].config = chartsConfig[chartId].luckysheet_data;
+             }
+        }
+        
+        // Transform 2D array to sparse 'celldata' for Luckysheet
+        let celldata = [];
+        
+        // If static mode (no dataset) and we have saved data, use it
+        if (chartId && chartsConfig[chartId] && !chartsConfig[chartId].dataset_id && chartsConfig[chartId].luckysheet_celldata) {
+            celldata = chartsConfig[chartId].luckysheet_celldata;
+        } else {
+            // Otherwise generate from rows/cols (Dataset mode or initial empty state)
+            sheetData.forEach((row, r) => {
+                row.forEach((cell, c) => {
+                    celldata.push({
+                        r: r,
+                        c: c,
+                        v: cell
+                    });
+                });
+            });
+        }
+        
+        options.data[0].celldata = celldata;
+        
+        try {
+            luckysheet.create(options);
+            
+            // Add Drop Listener to the container after creation
+            setTimeout(() => {
+                const container = document.getElementById(containerId);
+                if (container) {
+                     container.addEventListener('dragover', function(e) {
+                         e.preventDefault();
+                         e.dataTransfer.dropEffect = 'copy';
+                     });
+                     
+                     container.addEventListener('drop', function(e) {
+                         e.preventDefault();
+                         const column = e.dataTransfer.getData("text/plain");
+                         if (column) {
+                             // Use luckysheet.setCellValue(r, c, val) for the currently selected cell
+                             // Luckysheet selection range
+                             if (typeof luckysheet !== 'undefined' && luckysheet.getRange) {
+                                 const range = luckysheet.getRange(); 
+                                 if (range && range.length > 0) {
+                                     const r = range[0].row[0];
+                                     const c = range[0].column[0];
+                                     
+                                     // Insert as text
+                                     luckysheet.setCellValue(r, c, column);
+                                     luckysheet.refresh();
+                                     
+                                     // Optional: Trigger update to save config immediately
+                                     if (options.hook && options.hook.updated) {
+                                         options.hook.updated({});
+                                     }
+                                 } else {
+                                     alert('请先在表格中点击选中一个单元格，再拖入列名');
+                                 }
+                             }
+                         }
+                     });
+                }
+            }, 500);
+            
+        } catch (e) {
+            console.error("Luckysheet create error:", e);
+            const errContainer = document.getElementById(containerId);
+            if (errContainer) {
+                errContainer.innerHTML = `<div class="text-danger p-2 small">渲染错误: ${e.message}</div>`;
+            }
+        }
+    }
+
+    function renderTable(cols, rows) {
+        // Fallback or wrapper for Luckysheet if we want to use it instead of HTML table
+        // But renderTable returns HTML string in previous logic.
+        // Luckysheet needs to be mounted on DOM.
+        
+        // So we return a container div string, and then caller calls renderLuckysheet?
+        // Or we stick to HTML table for small preview and use Luckysheet for real 'Table' type?
+        
+        // The user wants "Luckysheet component".
+        // Let's generate a unique ID for the container.
+        const uid = 'ls-' + Math.random().toString(36).substr(2, 9);
+        
+        // We return a placeholder, but we need to trigger the render AFTER the placeholder is in DOM.
+        // This is tricky with simple innerHTML replacement.
+        
+        // Strategy: Return HTML with a script tag? No, script tags in innerHTML might not execute.
+        // Strategy: Return HTML, and let the caller (refreshPreview) handle the Luckysheet init.
+        
+        // For now, let's keep the HTML table as "Quick Preview" and maybe only use Luckysheet when explicitly requested?
+        // User said: "Continue to use optimized Luckysheet component... fully test various table functions".
+        // This implies Luckysheet SHOULD be the view.
+        
+        // Let's modify refreshPreview to handle this.
+        // renderTable will just return the container HTML.
+        
+        return `<div id="${uid}" class="luckysheet-container"></div>`;
+    }
+
+    // ... existing filterTable (obsolete if using Luckysheet, but keep for fallback) ...
+    function filterTable(input, tableId) {
+        // ...
+    }
+
+    function removeCurrentWidget() {
+        if (currentWidget) {
+            grid.removeWidget(currentWidget);
+            delete chartsConfig[currentChartId];
+            document.getElementById('props-panel').style.display = 'none';
+            document.getElementById('empty-props').style.display = 'block';
+            currentWidget = null;
+            currentChartId = null;
+        }
+    }
+    
+    function loadReport() {
+        let fileConfig = null;
+        try {
+            const rawConfig = JSON.parse(document.getElementById('file-config').textContent || 'null');
+            // If rawConfig is a string (because template_config is a JSON string passed to json_script), parse it again
+            fileConfig = (typeof rawConfig === 'string') ? JSON.parse(rawConfig) : rawConfig;
+        } catch(e) {
+            console.error("Error parsing report config:", e);
+        }
+
+        if (fileConfig && fileConfig.charts) {
+            fileConfig.charts.forEach(c => {
+                chartsConfig[c.id] = c;
+                addWidgetToGrid(c.id, c);
+            });
+        }
+    }
+
+    async function saveReport() {
+        // Sync active Luckysheet config if exists
+        try {
+            if (currentLuckysheetChartId && typeof luckysheet !== 'undefined' && typeof luckysheet.getAllSheets === 'function') {
+                 // Check if the current container is actually visible/active?
+                 // Just try to get data.
+                 const all = luckysheet.getAllSheets();
+                 if (all && all.length > 0 && chartsConfig[currentLuckysheetChartId]) {
+                      chartsConfig[currentLuckysheetChartId].luckysheet_data = all[0].config;
+                      if (!chartsConfig[currentLuckysheetChartId].dataset_id) {
+                          chartsConfig[currentLuckysheetChartId].luckysheet_celldata = all[0].celldata;
+                      }
+                 }
+            }
+        } catch (e) {
+            console.warn("Failed to sync Luckysheet config before save:", e);
+        }
+
+        const layout = [];
+        grid.engine.nodes.forEach(node => {
+            const el = node.el;
+            const chartId = el.querySelector('.card').id;
+            const config = chartsConfig[chartId];
+            if (config) {
+                config.x = node.x;
+                config.y = node.y;
+                config.w = node.w;
+                config.h = node.h;
+                layout.push(config);
+            }
+        });
+        
+        const payload = {
+            charts: layout
+        };
+        
+        try {
+            const res = await fetch('{% url "api_save_report_config" report.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                alert('保存成功');
+            } else {
+                alert('保存失败: ' + data.message);
+            }
+        } catch (e) {
+            alert('保存失败: ' + e);
+        }
+    }
+    
+    async function togglePublish() {
+        const badge = document.getElementById('report-status-badge');
+        const btn = document.getElementById('btn-publish');
+        // Check current status by text content of badge
+        const isPublished = badge.innerText.trim() === '已发布';
+        const action = isPublished ? 'unpublish' : 'publish';
+        
+        if (!confirm(isPublished ? '确定要取消发布吗？取消后仅设计者可见。' : '确定要发布报表吗？发布后将在报表列表中可见。')) {
+            return;
+        }
+
+        try {
+            const res = await fetch('{% url "api_publish_report" report.id %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({ action: action })
+            });
+            
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            
+            // Check for JSON content type
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new Error("服务器返回了非JSON格式数据 (可能是登录过期)");
+            }
+
+            const data = await res.json();
+            if (data.success) {
+                if (action === 'publish') {
+                    badge.className = 'badge bg-success me-3 align-middle';
+                    badge.innerText = '已发布';
+                    btn.innerHTML = '<i class="bi bi-cloud-upload"></i> 取消发布';
+                    alert('发布成功！');
+                } else {
+                    badge.className = 'badge bg-secondary me-3 align-middle';
+                    badge.innerText = '草稿';
+                    btn.innerHTML = '<i class="bi bi-cloud-upload"></i> 发布';
+                    alert('已取消发布！');
+                }
+            } else {
+                alert('操作失败: ' + data.message);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('网络错误: ' + e.message);
+        }
+    }
+    
+    function saveLayoutToLocal() {
+        // Optional: Auto-save to local storage or just wait for manual save
+    }
+
+    function setSourceMode(mode) {
+        // Mode tracking if needed
+    }
+    
+    // Auto-fill SQL when parent dataset is selected
+    document.addEventListener('DOMContentLoaded', function() {
+        const parentSelect = document.getElementById('parentDatasetSelect');
+        if (parentSelect) {
+            parentSelect.addEventListener('change', async function() {
+                const datasetId = this.value;
+                if (!datasetId) return;
+                
+                try {
+                    // Use Django URL pattern to avoid hardcoded paths
+                    const urlPattern = "{% url 'api_get_dataset_detail' 0 %}";
+                    const detailUrl = urlPattern.replace('0', datasetId);
+                    
+                    const res = await fetch(detailUrl);
+                    if (!res.ok) {
+                        throw new Error(`HTTP error! status: ${res.status}`);
+                    }
+                    
+                    // Check for JSON content type
+                    const contentType = res.headers.get("content-type");
+                    if (!contentType || !contentType.includes("application/json")) {
+                        const text = await res.text();
+                        console.error("Non-JSON Response Preview:", text.substring(0, 500));
+                        throw new Error("服务器返回了非JSON格式数据 (可能是登录过期或页面不存在)");
+                    }
+
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        const ds = data.dataset;
+                        
+                        // 1. Set Datasource (in the other tab)
+                        const dsSelect = document.getElementById('datasourceSelect');
+                        if (dsSelect) dsSelect.value = ds.datasource_id;
+                        
+                        // 2. Set SQL
+                        const sqlField = document.querySelector('[name="sql_script"]');
+                        // Use placeholder
+                        if (sqlField) sqlField.value = `SELECT * FROM {% templatetag openvariable %} dataset:${ds.id} {% templatetag closevariable %} AS t`;
+                        
+                    } else {
+                        alert('获取数据集详情失败: ' + data.message);
+                    }
+                } catch (e) {
+                    console.error(e);
+                    alert('网络错误: ' + e.message);
+                }
+            });
+        }
+    });
+
+    function openCreateDatasetModal() {
+        document.getElementById('createDatasetForm').reset();
+        document.getElementById('datasetId').value = '';
+        document.getElementById('datasetModalTitle').innerText = '新建数据集';
+        document.getElementById('previewResult').style.display = 'none';
+        document.getElementById('previewResult').innerHTML = '';
+        
+        // Reset to first tab
+        const triggerEl = document.querySelector('#datasetSourceTabs button[data-bs-target="#source-custom"]');
+        if (triggerEl) {
+             const tab = new bootstrap.Tab(triggerEl);
+             tab.show();
+        }
+        
+        new bootstrap.Modal(document.getElementById('createDatasetModal')).show();
+    }
+    
+    async function editDataset(id) {
+        if (!id) {
+            alert('无效的数据集ID');
+            return;
+        }
+        try {
+            // Use Django URL pattern to avoid hardcoded paths
+            const urlPattern = "{% url 'api_get_dataset_detail' 0 %}";
+            const detailUrl = urlPattern.replace('0', id);
+            
+            const res = await fetch(detailUrl);
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            
+            // Check for JSON content type
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await res.text();
+                console.error("Non-JSON Response Preview:", text.substring(0, 500));
+                throw new Error("服务器返回了非JSON格式数据 (可能是登录过期或页面不存在)");
+            }
+            
+            const data = await res.json();
+            
+            if (data.success) {
+                const ds = data.dataset;
+                const form = document.getElementById('createDatasetForm');
+                form.reset();
+                
+                document.getElementById('datasetId').value = ds.id;
+                document.getElementById('datasetModalTitle').innerText = '编辑数据集';
+                
+                form.querySelector('[name="name"]').value = ds.name;
+                
+                // Set Datasource
+                const dsSelect = document.getElementById('datasourceSelect');
+                dsSelect.value = ds.datasource_id;
+                
+                // 2. Set SQL and Mode
+                        const sqlField = document.querySelector('[name="sql_script"]');
+                        const sqlScript = ds.sql_script || '';
+                        
+                        // Detect if it is a dataset reference (Nesting Mode)
+                        // Use RegExp constructor to avoid Django template parsing issues with curly braces
+                        const datasetPattern = new RegExp('SELECT \\* FROM {% templatetag openvariable %} dataset:(\\d+) {% templatetag closevariable %} AS t', 'i');
+                        const match = sqlScript.match(datasetPattern);
+                        
+                        if (match) {
+                             // It is a nested dataset
+                             const parentId = match[1];
+                             
+                             // Switch to Dataset Tab
+                             const triggerEl = document.querySelector('#datasetSourceTabs button[data-bs-target="#source-dataset"]');
+                             if (triggerEl) {
+                                  const tab = new bootstrap.Tab(triggerEl);
+                                  tab.show();
+                             }
+                             
+                             // Set Parent Dataset Select
+                             const parentSelect = document.getElementById('parentDatasetSelect');
+                             if (parentSelect) parentSelect.value = parentId;
+                             
+                             // Fill SQL field but maybe keep it hidden or readonly in this mode?
+                             // For now, we just fill it.
+                             if (sqlField) sqlField.value = sqlScript;
+                             
+                        } else {
+                             // It is custom SQL
+                             // Switch to Custom Data tab
+                             const triggerEl = document.querySelector('#datasetSourceTabs button[data-bs-target="#source-custom"]');
+                             if (triggerEl) {
+                                  const tab = new bootstrap.Tab(triggerEl);
+                                  tab.show();
+                             }
+                             
+                             if (sqlField) sqlField.value = sqlScript;
+                        }
+                
+                document.getElementById('previewResult').style.display = 'none';
+                
+                new bootstrap.Modal(document.getElementById('createDatasetModal')).show();
+            } else {
+                alert('获取详情失败: ' + data.message);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('网络错误: ' + e.message);
+        }
+    }
+    
+    async function previewDataset() {
+        const form = document.getElementById('createDatasetForm');
+        const formData = new FormData(form);
+        const mode = 'sql'; // Always SQL preview
+        const content = formData.get('sql_script');
+        const datasource_id = formData.get('datasource_id');
+        
+        if (!datasource_id || !content) {
+            alert('请选择数据源并填写SQL');
+            return;
+        }
+        
+        const resultDiv = document.getElementById('previewResult');
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div class="text-center"><div class="spinner-border spinner-border-sm"></div> 加载中...</div>';
+        
+        try {
+            const res = await fetch('{% url "api_preview_sql" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify({
+                    datasource_id: datasource_id,
+                    mode: mode,
+                    content: content
+                })
+            });
+            
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            
+            // Check for JSON content type
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                throw new Error("服务器返回了非JSON格式数据 (可能是登录过期)");
+            }
+
+            const data = await res.json();
+            if (data.success) {
+                let html = '<table class="table table-sm table-bordered table-striped small mb-0"><thead><tr>';
+                data.columns.forEach(col => {
+                    html += `<th>${col}</th>`;
+                });
+                html += '</tr></thead><tbody>';
+                
+                data.data.forEach(row => {
+                    html += '<tr>';
+                    data.columns.forEach((col, idx) => {
+                        let val = Array.isArray(row) ? row[idx] : row[col];
+                        html += `<td>${val !== null && val !== undefined ? val : ''}</td>`;
+                    });
+                    html += '</tr>';
+                });
+                html += '</tbody></table>';
+                resultDiv.innerHTML = html;
+            } else {
+                resultDiv.innerHTML = `<div class="text-danger">错误: ${data.message}</div>`;
+            }
+        } catch (e) {
+            console.error(e);
+            resultDiv.innerHTML = `<div class="text-danger">网络错误</div>`;
+        }
+    }
+
+    async function deleteDataset(id) {
+        if (!confirm('确定要删除这个数据集吗？')) return;
+        
+        try {
+            // Use Django URL pattern to avoid hardcoded paths
+            const urlPattern = "{% url 'api_delete_dataset' 0 %}";
+            const deleteUrl = urlPattern.replace('0', id);
+            
+            const res = await fetch(deleteUrl, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+            
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+            
+            const data = await res.json();
+            if (data.success) {
+                // Remove from UI
+                const item = document.getElementById(`dataset-item-${id}`);
+                if (item) item.remove();
+                
+                // If list is empty, show empty message
+                const list = document.getElementById('datasetList');
+                if (list && list.children.length === 0) {
+                    list.innerHTML = `
+                    <div class="text-center text-muted small py-3">
+                        暂无数据集<br>
+                        <a href="#" onclick="openCreateDatasetModal(); return false;">去创建</a>
+                    </div>`;
+                }
+                
+                // Remove from parent dataset select if it exists
+                const parentSelect = document.getElementById('parentDatasetSelect');
+                if (parentSelect) {
+                    const option = parentSelect.querySelector(`option[value="${id}"]`);
+                    if (option) option.remove();
+                }
+                
+                // Remove from properties panel dataset select
+                const propDataset = document.getElementById('propDataset');
+                if (propDataset) {
+                    const option = propDataset.querySelector(`option[value="${id}"]`);
+                    if (option) option.remove();
+                }
+                
+            } else {
+                alert('删除失败: ' + data.message);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('网络错误: ' + e.message);
+        }
+    }
+
+    async function saveNewDataset() {
+        const form = document.getElementById('createDatasetForm');
+        const formData = new FormData(form);
+        
+        const payload = {
+            id: formData.get('dataset_id'),
+            name: formData.get('name'),
+            datasource_id: formData.get('datasource_id'),
+            mode: 'sql', // Always save as SQL
+            content: formData.get('sql_script'),
+            report_id: '{{ report.id }}'
+        };
+        
+        if (!payload.name || !payload.datasource_id || !payload.content) {
+            alert('请填写完整信息');
+            return;
+        }
+        
+        try {
+            const res = await fetch('{% url "api_create_dataset" %}', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': '{{ csrf_token }}'
+                },
+                body: JSON.stringify(payload)
+            });
+            
+            if (!res.ok) {
+                throw new Error(`HTTP error! status: ${res.status}`);
+            }
+
+            // Check for JSON content type
+            const contentType = res.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await res.text();
+                console.error("Non-JSON Response:", text);
+                throw new Error("服务器返回了非JSON格式数据 (可能是登录过期)");
+            }
+
+            const data = await res.json();
+            if (data.success) {
+                const modal = bootstrap.Modal.getInstance(document.getElementById('createDatasetModal'));
+                modal.hide();
+                
+                const list = document.getElementById('datasetList');
+                
+                // Check if update
+                const existingItem = document.getElementById(`dataset-item-${data.dataset.id}`);
+                
+                if (existingItem) {
+                    // Update
+                    existingItem.querySelector('span').innerText = data.dataset.name;
+                    existingItem.querySelector('span').title = data.dataset.name;
+                    // Update onclick handlers if needed (name might have changed)
+                    existingItem.querySelector('.btn-outline-secondary').setAttribute('onclick', `editDataset('${data.dataset.id}')`);
+                    existingItem.querySelector('.btn-outline-danger').setAttribute('onclick', `deleteDataset('${data.dataset.id}')`);
+                } else {
+                    // Create
+                    const newItem = `
+                <div class="list-group-item list-group-item-action d-flex flex-column align-items-stretch p-2" id="dataset-item-${data.dataset.id}">
+                    <div class="d-flex justify-content-between align-items-center w-100">
+                        <div class="d-flex align-items-center text-truncate" style="cursor:pointer; flex: 1;" onclick="toggleDatasetColumns('${data.dataset.id}', this, event)">
+                            <i class="bi bi-chevron-right me-2 text-muted small toggle-icon"></i>
+                            <span class="text-truncate" title="${data.dataset.name}">${data.dataset.name}</span>
+                        </div>
+                        <div class="btn-group btn-group-sm ms-2">
+                            <button class="btn btn-outline-info" onclick="previewDatasetData('${data.dataset.id}')" title="预览数据">
+                                <i class="bi bi-table"></i>
+                            </button>
+                            <button class="btn btn-outline-secondary" onclick="editDataset('${data.dataset.id}')" title="编辑">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-outline-danger" onclick="deleteDataset('${data.dataset.id}')" title="删除">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="dataset-columns-list ps-4 small text-muted mt-1" style="display:none;" id="dataset-columns-${data.dataset.id}">
+                        <!-- columns will be loaded here -->
+                    </div>
+                </div>`;
+                    
+                    if (list.innerHTML.includes('暂无数据集')) {
+                         list.innerHTML = newItem;
+                    } else {
+                         list.insertAdjacentHTML('beforeend', newItem);
+                    }
+                }
+                
+                alert('数据集保存成功');
+                form.reset();
+            } else {
+                alert('保存失败: ' + data.message);
+            }
+        } catch (e) {
+            console.error(e);
+            alert('网络错误: ' + e.message);
+        }
+    }
+
+    // Removed duplicate toggleDatasetColumns
+
+    function initEmptyLuckysheet(id) {
+        const card = document.getElementById(id);
+        if (!card) return;
+        
+        const ph = card.querySelector('.chart-placeholder');
+        const cvs = card.querySelector(`#canvas-${id}`);
+        
+        if (ph) ph.style.display = 'none';
+        if (cvs) {
+            cvs.style.display = 'block';
+            
+            // Check if already initialized to prevent loop/re-render (Fix for 43:2056 error)
+            const existing = cvs.querySelector('.luckysheet-container');
+            if (existing) {
+                // If container exists, assume it's valid or initializing. 
+                // To force re-init, caller should clear cvs.innerHTML first.
+                return;
+            }
+
+            // Check Luckysheet availability early
+            if (typeof luckysheet === 'undefined') {
+                cvs.innerHTML = `
+                    <div class="d-flex flex-column align-items-center justify-content-center h-100 text-danger text-center p-3">
+                        <i class="bi bi-cloud-slash fs-1 mb-2"></i>
+                        <div class="fw-bold">Luckysheet 未加载</div>
+                        <div class="small text-muted">无法加载表格组件资源。请检查网络连接或刷新页面。</div>
+                        <div class="small text-muted mt-1">Local Resource Missing</div>
+                    </div>
+                `;
+                return;
+            }
+
+            // Render a default empty 5x5 grid
+            const cols = ['A', 'B', 'C', 'D', 'E'];
+            const rows = [
+                ['', '', '', '', ''],
+                ['', '', '', '', ''],
+                ['', '', '', '', ''],
+                ['', '', '', '', ''],
+                ['', '', '', '', '']
+            ];
+            
+            const containerHtml = renderTable(cols, rows);
+            cvs.innerHTML = containerHtml;
+            const match = containerHtml.match(/id="([^\"]+)"/);
+            if (match && match[1]) {
+                // Ensure container has size before rendering
+                const container = cvs.querySelector('.luckysheet-container');
+                if(container) {
+                    container.style.width = '100%';
+                    container.style.height = '100%';
+                }
+                
+                setTimeout(() => {
+                    renderLuckysheet(match[1], cols, rows, id);
+                }, 100); // Increased timeout slightly
+            }
+        }
+    }
+</script>
+{{ report.template_config|default:"null"|json_script:"file-config" }}
+<!-- Create Dataset Modal -->
+<div class="modal fade" id="createDatasetModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="datasetModalTitle">新建数据集</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createDatasetForm">
+                    <input type="hidden" name="dataset_id" id="datasetId">
+                    <div class="mb-3">
+                        <label class="form-label">数据集名称</label>
+                        <input type="text" class="form-control" name="name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">数据来源</label>
+                        <ul class="nav nav-tabs mb-3" id="datasetSourceTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="source-custom-tab" data-bs-toggle="tab" data-bs-target="#source-custom" type="button" role="tab" aria-controls="source-custom" aria-selected="true" onclick="setSourceMode('custom')">自定义数据</button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="source-dataset-tab" data-bs-toggle="tab" data-bs-target="#source-dataset" type="button" role="tab" aria-controls="source-dataset" aria-selected="false" onclick="setSourceMode('dataset')">自定义数据集</button>
+                            </li>
+                        </ul>
+                        
+                        <div class="tab-content" id="datasetSourceTabContent">
+                            <!-- Custom Data: Select DataSource -->
+                            <div class="tab-pane fade show active" id="source-custom" role="tabpanel" aria-labelledby="source-custom-tab">
+                                <div class="mb-3">
+                                    <label class="form-label">数据源</label>
+                                    <select class="form-select" name="datasource_id" id="datasourceSelect">
+                                        <option value="">请选择数据源...</option>
+                                        {% for ds in data_sources %}
+                                        <option value="{{ ds.id }}">{{ ds.name }} ({{ ds.db_type }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <!-- Dataset Data: Select Dataset -->
+                            <div class="tab-pane fade" id="source-dataset" role="tabpanel" aria-labelledby="source-dataset-tab">
+                                <div class="mb-3">
+                                    <label class="form-label">选择数据集</label>
+                                    <select class="form-select" name="parent_dataset_id" id="parentDatasetSelect">
+                                        <option value="">-- 请选择 --</option>
+                                        {% for ds in all_datasets %}
+                                        <option value="{{ ds.id }}">{{ ds.name }}</option>
+                                        {% endfor %}
+                                    </select>
+                                    <div class="form-text">基于已有数据集创建子查询</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">自定义SQL</label>
+                        <textarea class="form-control" name="sql_script" rows="5" placeholder="SELECT * FROM table..."></textarea>
+                        <div class="d-flex justify-content-end mt-2">
+                            <button type="button" class="btn btn-sm btn-info text-white" onclick="previewDataset()">预览数据</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Hidden field to track current mode (though we mostly just use SQL) -->
+                    <input type="hidden" name="mode" id="datasetMode" value="sql">
+                    
+                    <!-- Preview Section -->
+                    <div class="mb-3">
+                         <div id="previewResult" class="mt-2 border rounded p-2 bg-light overflow-auto" style="max-height: 200px; display: none;">
+                             <div class="text-muted small">点击预览查看数据...</div>
+                         </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-primary" onclick="saveNewDataset()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

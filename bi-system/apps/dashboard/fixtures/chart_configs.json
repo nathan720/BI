@@ -1,0 +1,842 @@
+{
+  "Table": {
+    "label": "表格",
+    "icon": "bi-table",
+    "全局配置": [
+      {
+        "参数名称": "title",
+        "类型": "str",
+        "默认值": "数据表",
+        "功能说明": "标题",
+        "示例": "'销售数据'"
+      }
+    ],
+    "系列配置": [
+      {
+        "参数名称": "page_size",
+        "类型": "number",
+        "默认值": "20",
+        "功能说明": "每页行数 (前端分页)",
+        "示例": "50"
+      }
+    ]
+  },
+  "Bar": {
+    "全局配置": [
+      {
+        "参数名称": "datazoom_opts",
+        "类型": "DataZoomOpts",
+        "默认值": "无",
+        "功能说明": "区域缩放",
+        "示例": "opts.DataZoomOpts(type_='slider')"
+      },
+      {
+        "参数名称": "visualmap_opts",
+        "类型": "VisualMapOpts",
+        "默认值": "无",
+        "功能说明": "视觉映射",
+        "示例": "opts.VisualMapOpts(max_=100)"
+      },
+      {
+        "参数名称": "reversal_axis",
+        "类型": "bool",
+        "默认值": "False",
+        "功能说明": "翻转轴",
+        "示例": "True"
+      },
+      {
+        "参数名称": "colors",
+        "类型": "list",
+        "默认值": "无",
+        "功能说明": "自定义颜色序列(逗号分隔)",
+        "示例": "#5470c6, #91cc75"
+      }
+    ],
+    "系列配置": [
+      {
+        "参数名称": "color_by",
+        "类型": "select",
+        "默认值": "series",
+        "功能说明": "颜色分组(series/data)",
+        "示例": "data"
+      },
+      {
+        "参数名称": "add_xaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "X轴数据",
+        "示例": "add_xaxis(['A', 'B'])"
+      },
+      {
+        "参数名称": "add_yaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "Y轴数据",
+        "示例": "add_yaxis('系列A', [10, 20])"
+      },
+      {
+        "参数名称": "stack",
+        "类型": "str",
+        "默认值": "None",
+        "功能说明": "堆叠(输入相同名称以堆叠)",
+        "示例": "'stack1'"
+      },
+      {
+        "参数名称": "stack_strategy",
+        "类型": "select",
+        "默认值": "normal",
+        "选项": ["normal", "percent"],
+        "功能说明": "堆叠模式(普通/百分比)",
+        "示例": "percent"
+      },
+      {
+        "参数名称": "realtime_sort",
+        "类型": "bool",
+        "默认值": "False",
+        "功能说明": "开启Bar Race实时排序",
+        "示例": "True"
+      },
+      {
+        "参数名称": "bar_gap",
+        "类型": "str",
+        "默认值": "30%",
+        "功能说明": "柱间距离",
+        "示例": "'0%'"
+      },
+      {
+        "参数名称": "label_opts",
+        "类型": "LabelOpts",
+        "默认值": "无",
+        "功能说明": "标签配置",
+        "示例": "opts.LabelOpts(position='top')"
+      },
+      {
+        "参数名称": "itemstyle_opts",
+        "类型": "ItemStyleOpts",
+        "默认值": "无",
+        "功能说明": "图形样式",
+        "示例": "opts.ItemStyleOpts(color='red')"
+      }
+    ],
+    "坐标轴配置": [
+      {
+        "参数名称": "xaxis_opts",
+        "类型": "AxisOpts",
+        "默认值": "类目轴",
+        "必填": true,
+        "功能说明": "X轴",
+        "示例": "opts.AxisOpts(name='日期')"
+      },
+      {
+        "参数名称": "yaxis_opts",
+        "类型": "AxisOpts",
+        "默认值": "数值轴",
+        "必填": true,
+        "功能说明": "Y轴",
+        "示例": "opts.AxisOpts(name='销量')"
+      }
+    ]
+  },
+  "Line": {
+    "全局配置": [
+      {
+        "参数名称": "datazoom_opts",
+        "类型": "DataZoomOpts",
+        "默认值": "无",
+        "功能说明": "缩放",
+        "示例": "opts.DataZoomOpts()"
+      },
+      {
+        "参数名称": "visualmap_opts",
+        "类型": "VisualMapOpts",
+        "默认值": "无",
+        "功能说明": "视觉映射",
+        "示例": "opts.VisualMapOpts()"
+      }
+    ],
+    "系列配置": [
+      {
+        "参数名称": "add_xaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "X轴数据",
+        "示例": "add_xaxis(['A', 'B'])"
+      },
+      {
+        "参数名称": "add_yaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "Y轴数据",
+        "示例": "add_yaxis('系列1', [1, 2])"
+      },
+      {
+        "参数名称": "is_smooth",
+        "类型": "bool",
+        "默认值": "False",
+        "功能说明": "平滑曲线",
+        "示例": "True"
+      },
+      {
+        "参数名称": "is_step",
+        "类型": "bool",
+        "默认值": "False",
+        "功能说明": "阶梯图",
+        "示例": "True"
+      },
+      {
+        "参数名称": "stack",
+        "类型": "str",
+        "默认值": "None",
+        "功能说明": "堆叠",
+        "示例": "'stack1'"
+      },
+      {
+        "参数名称": "symbol",
+        "类型": "str",
+        "默认值": "emptyCircle",
+        "功能说明": "标记图形",
+        "示例": "'circle'"
+      },
+      {
+        "参数名称": "symbol_size",
+        "类型": "int",
+        "默认值": "4",
+        "功能说明": "标记大小",
+        "示例": "10"
+      },
+      {
+        "参数名称": "areastyle_opts",
+        "类型": "AreaStyleOpts",
+        "默认值": "无",
+        "功能说明": "区域填充",
+        "示例": "opts.AreaStyleOpts(opacity=0.5)"
+      },
+      {
+        "参数名称": "area_style",
+        "类型": "bool",
+        "默认值": "False",
+        "功能说明": "开启区域填充(简单)",
+        "示例": "True"
+      },
+      {
+        "参数名称": "area_opacity",
+        "类型": "float",
+        "默认值": "0.5",
+        "功能说明": "区域透明度",
+        "示例": "0.5"
+      },
+      {
+        "参数名称": "markpoint_show",
+        "类型": "bool",
+        "默认值": "False",
+        "功能说明": "显示最值点",
+        "示例": "True"
+      },
+      {
+        "参数名称": "markpoint_type",
+        "类型": "select",
+        "默认值": "max",
+        "功能说明": "最值点类型(max/min/average)",
+        "示例": "max"
+      },
+      {
+        "参数名称": "markline_show",
+        "类型": "bool",
+        "默认值": "False",
+        "功能说明": "显示辅助线",
+        "示例": "True"
+      },
+      {
+        "参数名称": "markline_type",
+        "类型": "select",
+        "默认值": "average",
+        "功能说明": "辅助线类型(average/max/min)",
+        "示例": "average"
+      },
+      {
+        "参数名称": "linestyle_opts",
+        "类型": "LineStyleOpts",
+        "默认值": "实线",
+        "功能说明": "线条样式",
+        "示例": "opts.LineStyleOpts(width=2)"
+      },
+      {
+        "参数名称": "itemstyle_opts",
+        "类型": "ItemStyleOpts",
+        "默认值": "无",
+        "功能说明": "标记点样式",
+        "示例": "opts.ItemStyleOpts(color='blue')"
+      }
+    ],
+    "坐标轴配置": [
+      {
+        "参数名称": "xaxis_opts",
+        "类型": "AxisOpts",
+        "默认值": "类目轴",
+        "必填": true,
+        "功能说明": "X轴",
+        "示例": "opts.AxisOpts(name='日期')"
+      },
+      {
+        "参数名称": "yaxis_opts",
+        "类型": "AxisOpts",
+        "默认值": "数值轴",
+        "必填": true,
+        "功能说明": "Y轴",
+        "示例": "opts.AxisOpts(name='值')"
+      },
+      {
+        "参数名称": "y_axis_type",
+        "类型": "select",
+        "默认值": "value",
+        "功能说明": "Y轴类型(value/log)",
+        "示例": "value"
+      },
+      {
+        "参数名称": "y2_axis_opts",
+        "类型": "AxisOpts",
+        "默认值": "数值轴",
+        "功能说明": "Y2轴(右侧)",
+        "示例": "opts.AxisOpts(name='增长率', position='right')"
+      }
+    ]
+  },
+  "Pie": {
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('', [('A', 10), ('B', 20)])"
+      },
+      {
+        "参数名称": "radius",
+        "类型": "list",
+        "默认值": "['0%', '75%']",
+        "功能说明": "半径",
+        "示例": "['40%', '75%']"
+      },
+      {
+        "参数名称": "center",
+        "类型": "list",
+        "默认值": "['50%', '50%']",
+        "功能说明": "圆心",
+        "示例": "['50%', '60%']"
+      },
+      {
+        "参数名称": "rosetype",
+        "类型": "str",
+        "默认值": "None",
+        "功能说明": "玫瑰图",
+        "示例": "'radius'"
+      },
+      {
+        "参数名称": "itemstyle_opts",
+        "类型": "ItemStyleOpts",
+        "默认值": "无",
+        "功能说明": "样式",
+        "示例": "opts.ItemStyleOpts(border_color='white')"
+      }
+    ]
+  },
+  "Scatter": {
+    "全局配置": [
+      {
+        "参数名称": "visualmap_opts",
+        "类型": "VisualMapOpts",
+        "默认值": "无",
+        "功能说明": "视觉映射",
+        "示例": "opts.VisualMapOpts(type_='size')"
+      }
+    ],
+    "系列配置": [
+      {
+        "参数名称": "add_xaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "X轴数据",
+        "示例": "add_xaxis([1, 2, 3])"
+      },
+      {
+        "参数名称": "add_yaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "Y轴数据",
+        "示例": "add_yaxis('A', [10, 20, 30])"
+      },
+      {
+        "参数名称": "symbol",
+        "类型": "str",
+        "默认值": "circle",
+        "功能说明": "点图形",
+        "示例": "'rect'"
+      },
+      {
+        "参数名称": "symbol_size",
+        "类型": "int",
+        "默认值": "10",
+        "功能说明": "点大小",
+        "示例": "20"
+      },
+      {
+        "参数名称": "itemstyle_opts",
+        "类型": "ItemStyleOpts",
+        "默认值": "无",
+        "功能说明": "样式",
+        "示例": "opts.ItemStyleOpts(color='red')"
+      }
+    ],
+    "坐标轴配置": [
+      {
+        "参数名称": "xaxis_opts",
+        "类型": "AxisOpts",
+        "默认值": "数值轴",
+        "必填": true,
+        "功能说明": "X轴",
+        "示例": "opts.AxisOpts(type_='value')"
+      },
+      {
+        "参数名称": "yaxis_opts",
+        "类型": "AxisOpts",
+        "默认值": "数值轴",
+        "必填": true,
+        "功能说明": "Y轴",
+        "示例": "opts.AxisOpts(type_='value')"
+      },
+      {
+        "参数名称": "y_axis_type",
+        "类型": "select",
+        "默认值": "value",
+        "功能说明": "Y轴类型(value/category)",
+        "示例": "category"
+      }
+    ]
+  },
+  "Radar": {
+    "系列配置": [
+      {
+        "参数名称": "add_schema",
+        "类型": "Schema",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "雷达指示器",
+        "示例": "add_schema(schema=[...])"
+      },
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('Series', [[1, 2, 3]])"
+      },
+      {
+        "参数名称": "areastyle_opts",
+        "类型": "AreaStyleOpts",
+        "默认值": "无",
+        "功能说明": "填充",
+        "示例": "opts.AreaStyleOpts(opacity=0.2)"
+      },
+      {
+        "参数名称": "linestyle_opts",
+        "类型": "LineStyleOpts",
+        "默认值": "无",
+        "功能说明": "线条样式",
+        "示例": "opts.LineStyleOpts(width=2)"
+      },
+      {
+        "参数名称": "itemstyle_opts",
+        "类型": "ItemStyleOpts",
+        "默认值": "无",
+        "功能说明": "样式",
+        "示例": "opts.ItemStyleOpts(color='green')"
+      }
+    ]
+  },
+  "Funnel": {
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('Funnel', data_pair)"
+      },
+      {
+        "参数名称": "sort_",
+        "类型": "str",
+        "默认值": "descending",
+        "功能说明": "排序",
+        "示例": "'ascending'"
+      },
+      {
+        "参数名称": "gap",
+        "类型": "int",
+        "默认值": "0",
+        "功能说明": "间距",
+        "示例": "2"
+      },
+      {
+        "参数名称": "itemstyle_opts",
+        "类型": "ItemStyleOpts",
+        "默认值": "无",
+        "功能说明": "样式",
+        "示例": "opts.ItemStyleOpts()"
+      }
+    ]
+  },
+  "Gauge": {
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('速度', [('值', 80)])"
+      },
+      {
+        "参数名称": "min_",
+        "类型": "int",
+        "默认值": "0",
+        "必填": true,
+        "功能说明": "最小值",
+        "示例": "0"
+      },
+      {
+        "参数名称": "max_",
+        "类型": "int",
+        "默认值": "100",
+        "必填": true,
+        "功能说明": "最大值",
+        "示例": "100"
+      },
+      {
+        "参数名称": "split_number",
+        "类型": "int",
+        "默认值": "10",
+        "功能说明": "分割段数",
+        "示例": "10"
+      },
+      {
+        "参数名称": "radius",
+        "类型": "str",
+        "默认值": "75%",
+        "功能说明": "半径",
+        "示例": "'75%'"
+      },
+      {
+        "参数名称": "start_angle",
+        "类型": "int",
+        "默认值": "225",
+        "功能说明": "开始角度",
+        "示例": "225"
+      },
+      {
+        "参数名称": "end_angle",
+        "类型": "int",
+        "默认值": "-45",
+        "功能说明": "结束角度",
+        "示例": "-45"
+      }
+    ]
+  },
+  "HeatMap": {
+    "全局配置": [
+      {
+        "参数名称": "visualmap_opts",
+        "类型": "VisualMapOpts",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "视觉映射",
+        "示例": "opts.VisualMapOpts()"
+      }
+    ],
+    "系列配置": [
+      {
+        "参数名称": "add_xaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "X轴数据",
+        "示例": "add_xaxis(x_data)"
+      },
+      {
+        "参数名称": "add_yaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "Y轴数据",
+        "示例": "add_yaxis('Series', y_data, value_data)"
+      }
+    ]
+  },
+  "Calendar": {
+    "全局配置": [
+      {
+        "参数名称": "visualmap_opts",
+        "类型": "VisualMapOpts",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "视觉映射",
+        "示例": "opts.VisualMapOpts()"
+      }
+    ],
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('', data)"
+      },
+      {
+        "参数名称": "calendar_opts",
+        "类型": "CalendarOpts",
+        "默认值": "2023",
+        "必填": true,
+        "功能说明": "日历配置",
+        "示例": "opts.CalendarOpts(range_='2023')"
+      }
+    ]
+  },
+  "Graph": {
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('', nodes, links)"
+      },
+      {
+        "参数名称": "layout",
+        "类型": "str",
+        "默认值": "force",
+        "功能说明": "布局",
+        "示例": "'circular'"
+      },
+      {
+        "参数名称": "symbol_size",
+        "类型": "int",
+        "默认值": "10",
+        "功能说明": "节点大小",
+        "示例": "10"
+      },
+      {
+        "参数名称": "repulsion",
+        "类型": "int",
+        "默认值": "50",
+        "功能说明": "斥力",
+        "示例": "100"
+      }
+    ]
+  },
+  "Liquid": {
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('Liquid', [0.6])"
+      },
+      {
+        "参数名称": "is_outline_show",
+        "类型": "bool",
+        "默认值": "True",
+        "功能说明": "显示轮廓",
+        "示例": "False"
+      },
+      {
+        "参数名称": "shape",
+        "类型": "str",
+        "默认值": "circle",
+        "功能说明": "形状",
+        "示例": "'diamond'"
+      }
+    ]
+  },
+  "Parallel": {
+    "系列配置": [
+      {
+        "参数名称": "add_schema",
+        "类型": "Schema",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "坐标轴定义",
+        "示例": "add_schema([opts.ParallelAxisOpts(...)])"
+      },
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('', data)"
+      }
+    ]
+  },
+  "PictorialBar": {
+    "系列配置": [
+      {
+        "参数名称": "add_yaxis",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add_yaxis('Series', data)"
+      },
+      {
+        "参数名称": "symbol",
+        "类型": "str",
+        "默认值": "rect",
+        "功能说明": "图形",
+        "示例": "'roundRect'"
+      },
+      {
+        "参数名称": "symbol_repeat",
+        "类型": "str",
+        "默认值": "fixed",
+        "功能说明": "重复方式",
+        "示例": "'fixed'"
+      },
+      {
+        "参数名称": "is_symbol_clip",
+        "类型": "bool",
+        "默认值": "True",
+        "功能说明": "裁剪",
+        "示例": "True"
+      }
+    ]
+  },
+  "Sankey": {
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('', nodes, links)"
+      },
+      {
+        "参数名称": "node_align",
+        "类型": "str",
+        "默认值": "justify",
+        "功能说明": "节点对齐",
+        "示例": "'left'"
+      },
+      {
+        "参数名称": "orient",
+        "类型": "str",
+        "默认值": "horizontal",
+        "功能说明": "方向",
+        "示例": "'vertical'"
+      },
+      {
+        "参数名称": "linestyle_opt",
+        "类型": "LineStyleOpts",
+        "默认值": "无",
+        "功能说明": "线条样式",
+        "示例": "opts.LineStyleOpts()"
+      },
+      {
+        "参数名称": "itemstyle_opts",
+        "类型": "ItemStyleOpts",
+        "默认值": "无",
+        "功能说明": "节点样式",
+        "示例": "opts.ItemStyleOpts()"
+      }
+    ]
+  },
+  "Map": {
+    "全局配置": [
+      {
+        "参数名称": "visualmap_opts",
+        "类型": "VisualMapOpts",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "视觉映射",
+        "示例": "opts.VisualMapOpts()"
+      }
+    ],
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add('China', data_pair)"
+      },
+      {
+        "参数名称": "maptype",
+        "类型": "str",
+        "默认值": "china",
+        "功能说明": "地图类型",
+        "示例": "'china'"
+      }
+    ]
+  },
+  "Grid": {
+    "组件配置": [
+      {
+        "参数名称": "grid_type",
+        "类型": "str",
+        "默认值": "multi_yaxis",
+        "功能说明": "布局类型",
+        "示例": "vertical"
+      },
+      {
+        "参数名称": "overlap_type",
+        "类型": "str",
+        "默认值": "bar_line",
+        "功能说明": "重叠类型",
+        "示例": "line_scatter"
+      },
+      {
+        "参数名称": "grid_opts",
+        "类型": "GridOpts",
+        "默认值": "无",
+        "功能说明": "网格位置",
+        "示例": "opts.GridOpts(pos_left='5%')"
+      }
+    ]
+  },
+  "Page": {
+    "组件配置": [
+      {
+        "参数名称": "layout",
+        "类型": "str",
+        "默认值": "SimplePageLayout",
+        "功能说明": "布局类型",
+        "示例": "SimplePageLayout"
+      }
+    ]
+  },
+  "Table": {
+    "系列配置": [
+      {
+        "参数名称": "add",
+        "类型": "MultiField",
+        "默认值": "无",
+        "必填": true,
+        "功能说明": "添加数据",
+        "示例": "add(headers, rows)"
+      }
+    ]
+  }
+}

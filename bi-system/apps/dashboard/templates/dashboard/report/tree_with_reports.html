@@ -1,0 +1,83 @@
+{% for node in nodes %}
+<div class="list-group-item border-0 p-0 mb-1">
+    <!-- Directory Node -->
+    <div class="d-flex align-items-center w-100 py-1 px-2 rounded hover-bg-light directory-item" 
+         onclick="selectDirectory('{{ node.id }}', this)" 
+         data-id="{{ node.id }}"
+         style="cursor: pointer;">
+        <!-- Toggle Icon -->
+        {% if node.children_dirs or node.reports_list %}
+        <a href="#collapse-dir-{{ node.id }}" data-bs-toggle="collapse" class="text-decoration-none text-dark me-2" aria-expanded="true">
+            <i class="bi bi-caret-down-fill small text-muted"></i>
+        </a>
+        {% else %}
+        <span class="me-3" style="width: 12px;"></span>
+        {% endif %}
+
+        <!-- Icon & Name -->
+        <span class="flex-grow-1 text-dark text-truncate" title="{{ node.name }}">
+            <i class="bi bi-folder-fill me-2 text-warning"></i>
+            {{ node.name }}
+        </span>
+        
+        <!-- Actions (Edit/Delete Directory) -->
+        <div class="btn-group btn-group-sm">
+            <a href="{% url 'report_directory_edit' node.id %}" class="btn btn-link text-secondary p-0 mx-1" title="编辑">
+                <i class="bi bi-pencil"></i>
+            </a>
+            <a href="{% url 'report_directory_delete' node.id %}" class="btn btn-link text-danger p-0 mx-1" title="删除" onclick="return confirm('确定要删除这个目录吗？');">
+                <i class="bi bi-trash"></i>
+            </a>
+        </div>
+    </div>
+
+    <!-- Children Container -->
+    <div class="collapse show ms-3 border-start ps-2" id="collapse-dir-{{ node.id }}">
+        
+        <!-- Recursive Sub-directories -->
+        {% if node.children_dirs %}
+            {% include "dashboard/report/tree_with_reports.html" with nodes=node.children_dirs %}
+        {% endif %}
+
+        <!-- Reports in this directory -->
+        {% if node.reports_list %}
+        <div class="list-group list-group-flush mt-1">
+            {% for report in node.reports_list %}
+            <div class="d-flex align-items-center py-1 ps-3 pe-2 rounded hover-bg-light">
+                <i class="bi bi-bar-chart-fill me-2 text-info small"></i>
+                <a href="{% url 'report_detail' report.id %}" class="text-secondary small flex-grow-1 text-truncate text-decoration-none" title="{{ report.name }}">
+                    {{ report.name }}
+                </a>
+                
+                <!-- Report Actions -->
+                 <div class="ms-auto btn-group btn-group-sm">
+                    <!-- Sort Arrows -->
+                    <a href="#" class="btn btn-link text-secondary p-0 mx-1" title="上移" onclick="reorderReport(event, {{ report.id }}, 'up')">
+                        <i class="bi bi-arrow-up-short"></i>
+                    </a>
+                    <a href="#" class="btn btn-link text-secondary p-0 mx-1" title="下移" onclick="reorderReport(event, {{ report.id }}, 'down')">
+                        <i class="bi bi-arrow-down-short"></i>
+                    </a>
+                    {% if not report.external_url %}
+                    <a href="{% url 'report_design' report.id %}" class="btn btn-link text-primary p-0 mx-1" title="设计报表">
+                        <i class="bi bi-pencil-square"></i>
+                    </a>
+                    <a href="#" class="btn btn-link text-secondary p-0 mx-1" title="设置" onclick="openEditReportModal(event, {{ report.id }}, '{{ report.name|escapejs }}', '{{ report.code|escapejs }}', {{ node.id }})">
+                        <i class="bi bi-gear"></i>
+                    </a>
+                    {% else %}
+                    <a href="#" class="btn btn-link text-secondary p-0 mx-1" title="设置" onclick="openEditExternalLinkModal(event, {{ report.id }}, '{{ report.name|escapejs }}', '{{ report.external_url|escapejs }}')">
+                        <i class="bi bi-gear"></i>
+                    </a>
+                    {% endif %}
+                    <a href="{% url 'report_delete' report.id %}" class="btn btn-link text-danger p-0 mx-1" title="删除" onclick="return confirm('确定要删除该报表吗？');">
+                        <i class="bi bi-trash"></i>
+                    </a>
+                 </div>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endfor %}

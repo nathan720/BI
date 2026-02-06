@@ -1,0 +1,23 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-12 text-center py-5">
+        <h2 class="display-4 text-primary"><i class="bi bi-phone"></i></h2>
+        <h3 class="mt-3">移动端门户</h3>
+        <p class="text-muted">此处是移动端访问的专属入口，展示适配手机屏幕的报表和功能。</p>
+        
+        <div class="d-grid gap-3 col-md-6 mx-auto mt-5">
+            <a href="{% url 'report_list' %}" class="btn btn-primary btn-lg">
+                <i class="bi bi-bar-chart-fill"></i> 查看报表
+            </a>
+            <a href="#" class="btn btn-outline-secondary btn-lg">
+                <i class="bi bi-bell"></i> 消息通知
+            </a>
+            <a href="#" class="btn btn-outline-secondary btn-lg">
+                <i class="bi bi-person-circle"></i> 个人中心
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}

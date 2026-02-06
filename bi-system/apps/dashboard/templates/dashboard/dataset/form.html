@@ -1,0 +1,153 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-5">
+        <div class="card h-100">
+            <div class="card-header">
+                <h5 class="mb-0">{{ content_title }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post" id="datasetForm">
+                    {% csrf_token %}
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">数据集名称</label>
+                        {{ form.name }}
+                        {{ form.name.errors }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.datasource.id_for_label }}" class="form-label">数据源</label>
+                        {{ form.datasource }}
+                        {{ form.datasource.errors }}
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label for="{{ form.sql_script.id_for_label }}" class="form-label">SQL 查询脚本</label>
+                        {{ form.sql_script }}
+                        {{ form.sql_script.errors }}
+                        <div class="form-text">支持标准 SQL 语法。点击"预览数据"测试查询结果。</div>
+                    </div>
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                        <a href="{% url 'dataset_list' %}" class="btn btn-secondary me-md-2">取消</a>
+                        <button type="button" class="btn btn-info me-md-2 text-white" onclick="previewData()">预览数据</button>
+                        <button type="submit" class="btn btn-primary">保存</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-7">
+        <div class="card h-100">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">数据预览</h5>
+                <span id="previewStatus" class="badge bg-secondary">未执行</span>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive" id="previewContainer" style="max-height: 500px; overflow: auto;">
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-table" style="font-size: 3rem;"></i>
+                        <p class="mt-2">请编写 SQL 并点击预览</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function previewData() {
+        const datasourceId = document.getElementById('{{ form.datasource.id_for_label }}').value;
+        const sqlScript = document.getElementById('{{ form.sql_script.id_for_label }}').value;
+        const csrfToken = document.querySelector('[name=csrfmiddlewaretoken]').value;
+        const previewContainer = document.getElementById('previewContainer');
+        const statusBadge = document.getElementById('previewStatus');
+        
+        if (!datasourceId) {
+            alert('请选择数据源');
+            return;
+        }
+        
+        if (!sqlScript) {
+            alert('请输入 SQL 脚本');
+            return;
+        }
+
+        // Show loading
+        statusBadge.className = 'badge bg-warning text-dark';
+        statusBadge.innerText = '执行中...';
+        previewContainer.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">正在查询数据...</p></div>';
+
+        const payload = {
+            datasource_id: datasourceId,
+            content: sqlScript
+        };
+
+        fetch('{% url "api_preview_sql" %}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': csrfToken
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(async response => {
+            const contentType = response.headers.get("content-type");
+            if (!contentType || !contentType.includes("application/json")) {
+                const text = await response.text();
+                console.error("Non-JSON response:", text);
+                if (text.includes('login') || text.includes('登录')) {
+                    throw new Error('会话已过期，请刷新页面重新登录');
+                }
+                throw new Error(`服务器返回非 JSON 数据 (Status: ${response.status})`);
+            }
+            
+            if (!response.ok) {
+                 throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                statusBadge.className = 'badge bg-success';
+                statusBadge.innerText = '执行成功';
+                renderTable(data.columns, data.data);
+            } else {
+                statusBadge.className = 'badge bg-danger';
+                statusBadge.innerText = '执行失败';
+                previewContainer.innerHTML = `<div class="alert alert-danger m-3">${data.message}</div>`;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            statusBadge.className = 'badge bg-danger';
+            statusBadge.innerText = '系统错误';
+            previewContainer.innerHTML = `<div class="alert alert-danger m-3">请求失败: ${error.message}</div>`;
+        });
+    }
+
+    function renderTable(columns, data) {
+        let html = '<table class="table table-striped table-hover mb-0"><thead><tr>';
+        columns.forEach(col => {
+            html += `<th>${col}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+        
+        data.forEach(row => {
+            html += '<tr>';
+            columns.forEach(col => {
+                // Support both object (dict) and array (list) rows
+                let cell = Array.isArray(row) ? row[columns.indexOf(col)] : row[col];
+                html += `<td>${cell !== null && cell !== undefined ? cell : ''}</td>`;
+            });
+            html += '</tr>';
+        });
+        
+        html += '</tbody></table>';
+        document.getElementById('previewContainer').innerHTML = html;
+    }
+</script>
+{% endblock %}

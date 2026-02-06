@@ -1,0 +1,64 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="container-fluid p-0">
+    <!-- Mobile Header -->
+    <div class="bg-primary text-white p-3 mb-3 shadow-sm">
+        <div class="d-flex justify-content-between align-items-center">
+            <h5 class="m-0">{{ report.name }}</h5>
+            <a href="{% url 'report_list' %}" class="text-white"><i class="bi bi-arrow-left"></i> 返回</a>
+        </div>
+    </div>
+
+    <!-- Mobile Content -->
+    <div class="px-2">
+        {% if report_data %}
+            {% for item in report_data %}
+            <div class="card mb-3 shadow-sm">
+                <div class="card-header bg-light py-2">
+                    <small class="fw-bold text-secondary">{{ item.dataset_name }}</small>
+                </div>
+                <div class="card-body p-0">
+                    {% if item.error %}
+                        <div class="alert alert-danger m-2">{{ item.error }}</div>
+                    {% else %}
+                        <div class="table-responsive" style="max-height: 400px; overflow-y: auto;">
+                            <table class="table table-sm table-bordered mb-0" style="font-size: 0.85rem;">
+                                <thead class="table-light sticky-top">
+                                    <tr>
+                                        {% for col in item.columns %}
+                                        <th>{{ col }}</th>
+                                        {% endfor %}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {% for row in item.data %}
+                                    <tr>
+                                        {% for cell in row %}
+                                        <td>{{ cell }}</td>
+                                        {% endfor %}
+                                    </tr>
+                                    {% endfor %}
+                                </tbody>
+                            </table>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+            {% endfor %}
+        {% else %}
+            <div class="text-center py-5 text-muted">
+                <i class="bi bi-inbox" style="font-size: 3rem;"></i>
+                <p class="mt-2">暂无数据</p>
+                <p class="small">{{ report.description }}</p>
+            </div>
+        {% endif %}
+    </div>
+</div>
+
+<style>
+    /* Mobile specific adjustments */
+    .content-wrapper { padding: 0 !important; } 
+    .container-fluid { max-width: 100%; }
+</style>
+{% endblock %}

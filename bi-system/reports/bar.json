@@ -1,0 +1,290 @@
+{
+    "charts": [
+        {
+            "id": "chart_1770032191818",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "基础bar",
+            "type": "bar",
+            "w": 6,
+            "h": 4,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": [
+                "xs",
+                "xfje"
+            ],
+            "series_col": "",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2",
+                "xfje": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000",
+                "xfje": "/10000"
+            },
+            "series_suffixes": {
+                "xs": "w"
+            },
+            "filters": [],
+            "title_show": false,
+            "card_title_align": "center",
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                }
+            },
+            "toolbox_show": false,
+            "x": 0,
+            "y": 0,
+            "colors": "#b224bc, #1fa358, #c0b326"
+        },
+        {
+            "id": "chart_1770032286609",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "堆叠柱状图",
+            "type": "bar",
+            "w": 6,
+            "h": 4,
+            "card_title_show": true,
+            "category_col": "dim_time",
+            "value_col": "xs",
+            "series_col": "xm",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000"
+            },
+            "series_suffixes": {},
+            "filters": [],
+            "legend_text_size": 9,
+            "toolbox_show": false,
+            "title_show": false,
+            "stack": true,
+            "card_title_align": "center",
+            "x": 6,
+            "y": 0,
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                }
+            }
+        },
+        {
+            "id": "chart_1770032451471",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "百分比堆叠柱状图",
+            "type": "bar",
+            "w": 6,
+            "h": 4,
+            "card_title_show": true,
+            "category_col": "dim_time",
+            "value_col": "xs",
+            "series_col": "xm",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000"
+            },
+            "series_suffixes": {
+                "xs": "w"
+            },
+            "filters": [],
+            "title_show": false,
+            "card_title_align": "center",
+            "toolbox_show": false,
+            "stack": true,
+            "stack_strategy": "percent",
+            "x": 0,
+            "y": 4,
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                }
+            },
+            "colors": "#7b328f, #3d8e1f, #c9b240, #bf6e22, #1c7859, #871d5a"
+        },
+        {
+            "id": "chart_1770032642603",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "动态竞速条形图",
+            "type": "bar",
+            "w": 6,
+            "h": 4,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": "xs",
+            "series_col": "dim_time",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000"
+            },
+            "series_suffixes": {},
+            "filters": [],
+            "reversal_axis": true,
+            "title_show": false,
+            "toolbox_show": false,
+            "realtime_sort": true,
+            "color_by": "data",
+            "timeline_field": "dim_time",
+            "card_title_align": "center",
+            "x": 6,
+            "y": 4,
+            "x_axis_inverse": false,
+            "animation_show": true,
+            "timeline_auto_play": true,
+            "label_show": true,
+            "label_value_animation": true,
+            "label_position": "right",
+            "grid_left": "15%",
+            "x_rotate": 15
+        },
+        {
+            "id": "chart_1770033082688",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "交错正负轴标签",
+            "type": "bar",
+            "w": 6,
+            "h": 4,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": [
+                "xs",
+                "xfje"
+            ],
+            "series_col": "",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2",
+                "xfje": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000",
+                "xfje": "/-10000"
+            },
+            "series_suffixes": {},
+            "filters": [],
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                },
+                "xfje": {
+                    "show": true
+                }
+            },
+            "title_show": false,
+            "card_title_align": "center",
+            "toolbox_show": false,
+            "reversal_axis": true,
+            "x": 0,
+            "y": 8
+        },
+        {
+            "id": "chart_1770033853301",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "象形柱图",
+            "type": "bar",
+            "w": 6,
+            "h": 4,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": "xs",
+            "series_col": "",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000"
+            },
+            "series_suffixes": {},
+            "filters": [],
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                }
+            },
+            "title_show": false,
+            "card_title_align": "center",
+            "toolbox_show": false,
+            "x": 6,
+            "y": 8,
+            "symbol": "roundRect",
+            "symbol_repeat": "true"
+        },
+        {
+            "id": "chart_1770036517124",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "组合图表",
+            "type": "bar",
+            "w": 6,
+            "h": 4,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": [
+                "xs",
+                "kl"
+            ],
+            "series_col": "",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2",
+                "kl": "float2"
+            },
+            "series_calculations": {
+                "kl": "/10000",
+                "xs": "/10000"
+            },
+            "series_suffixes": {},
+            "filters": [],
+            "series_axis": {
+                "kl": "right"
+            },
+            "series_types": {
+                "kl": "line"
+            },
+            "title_show": false,
+            "y_splitline_show": false,
+            "is_smooth": true,
+            "line_type": "dashed",
+            "area_style": false,
+            "label_show": true,
+            "toolbox_show": false,
+            "color_by": "data",
+            "colors": "#076e47, #a5991d, #4dc01b",
+            "grid_left": "10%",
+            "grid_bottom": "60",
+            "is_step": false,
+            "card_title_align": "center",
+            "x": 0,
+            "y": 12,
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                }
+            },
+            "bar_width": "50%"
+        }
+    ]
+}

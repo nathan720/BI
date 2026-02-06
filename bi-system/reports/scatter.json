@@ -1,0 +1,43 @@
+{
+    "charts": [
+        {
+            "id": "chart_1770103953845",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "新图表",
+            "type": "scatter",
+            "w": 12,
+            "h": 6,
+            "card_title_show": true,
+            "category_col": "xm",
+            "value_col": "xs",
+            "series_col": "day_week",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000"
+            },
+            "series_suffixes": {},
+            "filters": [],
+            "title_show": false,
+            "x_axis_boundary_gap": true,
+            "y_axis_type": "category",
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                }
+            },
+            "x_rotate": 15,
+            "x": 0,
+            "y": 0,
+            "toolbox_show": false,
+            "grid_left": "5%",
+            "grid_right": "5%",
+            "symbol": "arrow",
+            "colors": "#105507"
+        }
+    ]
+}

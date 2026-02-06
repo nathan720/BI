@@ -1,0 +1,19 @@
+<li class="list-group-item border-0">
+    <div class="d-flex justify-content-between align-items-center p-2 bg-light rounded mb-1">
+        <div>
+            <i class="bi bi-folder me-2 text-warning"></i> <strong>{{ dir.name }}</strong>
+            <span class="badge bg-secondary ms-2 rounded-pill" style="font-weight: normal; font-size: 0.8em;">排序: {{ dir.sort_order }}</span>
+        </div>
+        <div>
+            <a href="{% url 'report_directory_edit' dir.id %}" class="btn btn-sm btn-link text-decoration-none">编辑</a>
+            <a href="{% url 'report_directory_delete' dir.id %}" class="btn btn-sm btn-link text-danger text-decoration-none" onclick="return confirm('确定删除该目录及其子目录吗？')">删除</a>
+        </div>
+    </div>
+    {% if dir.children_dirs %}
+        <ul class="list-group list-group-flush ms-4 border-start border-2 ps-2">
+            {% for child in dir.children_dirs %}
+                {% include 'dashboard/report/directory_list_item.html' with dir=child %}
+            {% endfor %}
+        </ul>
+    {% endif %}
+</li>

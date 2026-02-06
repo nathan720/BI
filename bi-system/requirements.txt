@@ -1,0 +1,13 @@
+Django>=4.2
+djangorestframework
+mssql-django
+pyodbc
+celery
+redis
+django-cors-headers
+pandas
+sqlalchemy
+openpyxl
+pymysql
+psycopg2-binary
+oracledb

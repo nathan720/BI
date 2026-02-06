@@ -1,0 +1,501 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-light">
+                <div class="d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold">报表目录</h6>
+                    <a href="{% url base_url %}" class="btn btn-sm btn-outline-secondary" title="显示所有">
+                        <i class="bi bi-arrow-counterclockwise"></i>
+                    </a>
+                </div>
+            </div>
+            <div class="card-body p-0" style="max-height: 80vh; overflow-y: auto;">
+                <div class="list-group list-group-flush">
+                    <a href="{% url base_url %}" class="list-group-item list-group-item-action {% if not current_dir_id %}active{% endif %}">
+                        <i class="bi bi-grid-fill me-2"></i>所有报表
+                    </a>
+                    {% if directory_tree %}
+                        {% include "dashboard/report/tree_node.html" with nodes=directory_tree %}
+                    {% else %}
+                        <div class="p-3 text-center text-muted small">
+                            暂无目录
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="card shadow-sm h-100">
+            <div class="card-header bg-white py-3">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center gap-3">
+                        <h5 class="mb-0">{{ content_title }}</h5>
+                        <div class="input-group input-group-sm" style="width: 250px;">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                            <input type="text" class="form-control bg-light border-start-0" id="reportSearchInput" placeholder="搜索报表名称或描述...">
+                        </div>
+                    </div>
+                    <div>
+                        {% if mode == 'design' %}
+                        <button type="button" class="btn btn-primary btn-sm me-2" data-bs-toggle="modal" data-bs-target="#createReportModal">
+                            <i class="bi bi-plus-lg"></i> 新建报表
+                        </button>
+                        {% endif %}
+                        <span class="badge bg-secondary">{{ reports.count }} 个报表</span>
+                    </div>
+                </div>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle mb-0" id="reportTable">
+                        <thead class="table-light">
+                            <tr>
+                                <th scope="col" class="ps-3" style="width: 25%;">报表名称</th>
+                                <th scope="col" style="width: 30%;">描述</th>
+                                <th scope="col" style="width: 10%;">平台</th>
+                                {% if mode == 'design' %}
+                                <th scope="col" style="width: 15%;">状态</th>
+                                <th scope="col" style="width: 20%;">操作</th>
+                                {% else %}
+                                <th scope="col" style="width: 35%;">操作</th>
+                                {% endif %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for report in reports %}
+                            <tr>
+                                <td class="ps-3">
+                                    <div class="d-flex align-items-center">
+                                        <div class="bg-light rounded p-2 me-3 d-flex align-items-center justify-content-center text-primary" style="width: 40px; height: 40px;">
+                                            <i class="bi bi-bar-chart-fill fs-5"></i>
+                                        </div>
+                                        <div>
+                                            <a href="{% url 'report_detail' report.id %}" class="fw-bold text-dark text-decoration-none text-truncate d-block" style="max-width: 200px;" title="{{ report.name }}">{{ report.name }}</a>
+                                        </div>
+                                    </div>
+                                </td>
+                                <td>
+                                    <span class="text-muted small text-truncate d-block" style="max-width: 300px;" title="{{ report.description|default:'暂无描述' }}">
+                                        {{ report.description|default:"暂无描述" }}
+                                    </span>
+                                </td>
+                                <td>
+                                    {% if report.platform == 'mobile' %}
+                                    <span class="badge bg-info text-dark"><i class="bi bi-phone"></i> 移动端</span>
+                                    {% else %}
+                                    <span class="badge bg-secondary"><i class="bi bi-pc-display"></i> PC端</span>
+                                    {% endif %}
+                                </td>
+                                {% if mode == 'design' %}
+                                <td>
+                                    <div class="d-flex gap-1">
+                                        {% if report.status == 'published' %}
+                                        <span class="badge bg-success">已发布</span>
+                                        {% else %}
+                                        <span class="badge bg-secondary">草稿</span>
+                                        {% endif %}
+                                        
+                                        {% if report.is_visible %}
+                                        <span class="badge bg-info text-dark">显示</span>
+                                        {% else %}
+                                        <span class="badge bg-warning text-dark">隐藏</span>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                                {% endif %}
+                                <td>
+                                    <div class="btn-group btn-group-sm">
+                                        <a href="{% url 'report_detail' report.id %}" class="btn btn-outline-secondary" title="查看">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                        {% if mode == 'design' %}
+                                        <button type="button" class="btn btn-outline-secondary" title="{% if report.is_visible %}点击隐藏{% else %}点击显示{% endif %}" onclick="toggleReportVisibility({{ report.id }}, {{ report.is_visible|yesno:'true,false' }})">
+                                            <i class="bi {% if report.is_visible %}bi-eye-slash{% else %}bi-eye{% endif %}"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-primary" title="设置" onclick="openEditModal('{{ report.id }}', '{{ report.name|escapejs }}', '{{ report.code|escapejs }}', '{{ report.platform }}', '{{ report.is_visible|yesno:'true,false' }}', '{{ report.description|escapejs|default:'' }}', '{{ report.external_url|escapejs|default:'' }}')">
+                                            <i class="bi bi-gear"></i>
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" title="分配目录" onclick="openAssignDirectoryModal('{{ report.id }}', '{{ report.name|escapejs }}', [{% for d in report.directories.all %}{{ d.id }}{% if not forloop.last %},{% endif %}{% endfor %}])">
+                                            <i class="bi bi-folder-symlink"></i>
+                                        </button>
+                                        <a href="{% url 'report_delete' report.id %}" class="btn btn-outline-danger" title="删除" onclick="return confirm('确定要删除该报表吗？这将同时删除本地配置文件。');">
+                                            <i class="bi bi-trash"></i>
+                                        </a>
+                                        <a href="{% url 'report_design' report.id %}" class="btn btn-primary" title="设计报表">
+                                            <i class="bi bi-pencil-square"></i> 设计
+                                        </a>
+                                        {% endif %}
+                                    </div>
+                                </td>
+                            </tr>
+                            {% empty %}
+                            <tr>
+                                <td colspan="{% if mode == 'design' %}5{% else %}4{% endif %}" class="text-center py-5">
+                                    <div class="text-muted">
+                                        <i class="bi bi-folder2-open display-4"></i>
+                                        <p class="mt-3">该目录下暂无报表</p>
+                                    </div>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if mode == 'design' %}
+<!-- Create Report Modal -->
+<div class="modal fade" id="createReportModal" tabindex="-1" aria-labelledby="createReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" action="{% url 'report_create' %}">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="createReportModalLabel">新建报表</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="{{ form.name.id_for_label }}" class="form-label">报表名称</label>
+                        {{ form.name }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.code.id_for_label }}" class="form-label">报表编码</label>
+                        {{ form.code }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.external_url.id_for_label }}" class="form-label">外部链接 (可选)</label>
+                        {{ form.external_url }}
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.platform.id_for_label }}" class="form-label">适用平台</label>
+                        {{ form.platform }}
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            {{ form.is_visible }}
+                            <label class="form-check-label" for="{{ form.is_visible.id_for_label }}">在列表中显示</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="{{ form.description.id_for_label }}" class="form-label">描述</label>
+                        {{ form.description }}
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">下一步：设计布局</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if mode == 'design' %}
+<!-- Edit Report Modal -->
+<div class="modal fade" id="editReportModal" tabindex="-1" aria-labelledby="editReportModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form method="post" id="editReportForm">
+                {% csrf_token %}
+                <div class="modal-header">
+                    <h5 class="modal-title" id="editReportModalLabel">编辑报表</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label for="edit_name" class="form-label">报表名称</label>
+                        <input type="text" name="name" class="form-control" id="edit_name" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_code" class="form-label">报表编码</label>
+                        <input type="text" name="code" class="form-control" id="edit_code" required>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_external_url" class="form-label">外部链接 (可选)</label>
+                        <input type="text" name="external_url" class="form-control" id="edit_external_url" placeholder="可选：输入外部链接 (例如 http://example.com)">
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_platform" class="form-label">适用平台</label>
+                        <select name="platform" class="form-select" id="edit_platform">
+                            <option value="pc">PC Browser</option>
+                            <option value="mobile">Mobile App/H5</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <div class="form-check form-switch">
+                            <input type="checkbox" name="is_visible" class="form-check-input" id="edit_is_visible">
+                            <label class="form-check-label" for="edit_is_visible">在列表中显示</label>
+                        </div>
+                    </div>
+                    <div class="mb-3">
+                        <label for="edit_description" class="form-label">描述</label>
+                        <textarea name="description" class="form-control" id="edit_description" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存修改</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+{% if mode == 'design' %}
+<!-- Assign Directory Modal -->
+<div class="modal fade" id="assignDirectoryModal" tabindex="-1" aria-labelledby="assignDirectoryModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <form id="assignDirectoryForm" onsubmit="saveDirectories(event)">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="assignDirectoryModalLabel">分配目录</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="assign_report_id">
+                    <p>正在为报表 <strong id="assign_report_name"></strong> 分配目录：</p>
+                    <div class="mb-3">
+                        <label for="assign_directories" class="form-label">选择目录</label>
+                        <select class="form-select" id="assign_directories" multiple size="10">
+                            {% for dir in all_directories %}
+                            <option value="{{ dir.id }}">{{ dir.name }}</option>
+                            {% endfor %}
+                        </select>
+                        <div class="form-text">按住 Ctrl 可多选</div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="submit" class="btn btn-primary">保存</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+{% endif %}
+
+<style>
+    .hover-shadow:hover {
+        box-shadow: 0 .5rem 1rem rgba(0,0,0,.15)!important;
+        transform: translateY(-2px);
+    }
+    .transition-all {
+        transition: all 0.2s ease-in-out;
+    }
+    .group-action-container:hover .group-action-buttons {
+        opacity: 1 !important;
+    }
+    .group-action-buttons {
+        transition: opacity 0.2s;
+    }
+</style>
+
+<script>
+    var editModal;
+    var assignDirectoryModal;
+    
+    document.addEventListener('DOMContentLoaded', function() {
+        // Initialize modal
+        const editModalEl = document.getElementById('editReportModal');
+        if (editModalEl) {
+            editModal = new bootstrap.Modal(editModalEl);
+        }
+
+        const assignModalEl = document.getElementById('assignDirectoryModal');
+        if (assignModalEl) {
+            assignDirectoryModal = new bootstrap.Modal(assignModalEl);
+        }
+        
+        // Search logic
+        const searchInput = document.getElementById('reportSearchInput');
+        if (searchInput) {
+            searchInput.addEventListener('keyup', function() {
+                const searchText = this.value.toLowerCase();
+                const tableRows = document.querySelectorAll('#reportTable tbody tr');
+                let hasVisibleRows = false;
+                
+                tableRows.forEach(function(row) {
+                    // Skip empty/message rows
+                    if (row.cells.length <= 1) return; 
+                    
+                    const name = row.querySelector('td:nth-child(1)').textContent.toLowerCase();
+                    const desc = row.querySelector('td:nth-child(2)').textContent.toLowerCase();
+                    
+                    if (name.includes(searchText) || desc.includes(searchText)) {
+                        row.style.display = '';
+                        hasVisibleRows = true;
+                    } else {
+                        row.style.display = 'none';
+                    }
+                });
+
+                // Handle "No results" message
+                let noResultRow = document.getElementById('no-search-results');
+                if (!hasVisibleRows) {
+                    if (!noResultRow) {
+                        const tbody = document.querySelector('#reportTable tbody');
+                        noResultRow = document.createElement('tr');
+                        noResultRow.id = 'no-search-results';
+                        const colCount = document.querySelectorAll('#reportTable thead th').length;
+                        noResultRow.innerHTML = `
+                            <td colspan="${colCount}" class="text-center py-4 text-muted">
+                                <i class="bi bi-search display-6 d-block mb-2"></i>
+                                没有找到匹配的报表
+                            </td>
+                        `;
+                        tbody.appendChild(noResultRow);
+                    } else {
+                        noResultRow.style.display = '';
+                    }
+                } else {
+                    if (noResultRow) {
+                        noResultRow.style.display = 'none';
+                    }
+                }
+            });
+        }
+    });
+
+    function openEditModal(id, name, code, platform, isVisible, description, externalUrl) {
+        // Set form action URL
+        // We assume the URL pattern is /dashboard/report/edit/<id>
+        // Use a dummy URL to generate the base path using Django template tag
+        const baseUrl = "{% url 'report_edit' 0 %}".replace('0', id);
+        // Add next parameter to return to current page with query params
+        const nextUrl = window.location.pathname + window.location.search;
+        document.getElementById('editReportForm').action = baseUrl + "?next=" + encodeURIComponent(nextUrl);
+        
+        // Fill form fields
+        document.getElementById('edit_name').value = name;
+        document.getElementById('edit_code').value = code;
+        document.getElementById('edit_platform').value = platform;
+        document.getElementById('edit_is_visible').checked = (isVisible === 'true' || isVisible === true);
+        document.getElementById('edit_description').value = description;
+        document.getElementById('edit_external_url').value = externalUrl;
+        
+        // Show modal
+        if (editModal) {
+            editModal.show();
+        }
+    }
+    
+    function toggleReportVisibility(reportId, currentStatus) {
+        const action = currentStatus ? '隐藏' : '显示';
+        if (!confirm(`确定要${action}该报表吗？`)) {
+            return;
+        }
+
+        // Use a dummy ID that is unlikely to conflict
+        const dummyId = 999999;
+        const urlTemplate = "{% url 'api_save_report_meta' 999999 %}";
+        const url = urlTemplate.replace('999999', reportId);
+
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                is_visible: !currentStatus
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('操作失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('操作出错，请重试');
+        });
+    }
+
+    function openAssignDirectoryModal(reportId, reportName, currentDirectoryIds) {
+        document.getElementById('assign_report_id').value = reportId;
+        document.getElementById('assign_report_name').textContent = reportName;
+        
+        const select = document.getElementById('assign_directories');
+        if (select) {
+            // Reset
+            for (let i = 0; i < select.options.length; i++) {
+                select.options[i].selected = false;
+            }
+            // Select current
+            if (currentDirectoryIds && Array.isArray(currentDirectoryIds)) {
+                for (let i = 0; i < select.options.length; i++) {
+                    if (currentDirectoryIds.includes(parseInt(select.options[i].value))) {
+                        select.options[i].selected = true;
+                    }
+                }
+            }
+        }
+        
+        if (assignDirectoryModal) {
+            assignDirectoryModal.show();
+        }
+    }
+
+    function saveDirectories(event) {
+        event.preventDefault();
+        const reportId = document.getElementById('assign_report_id').value;
+        const select = document.getElementById('assign_directories');
+        const selectedIds = Array.from(select.selectedOptions).map(opt => parseInt(opt.value));
+        
+        // Use a dummy ID for template URL generation
+        const urlTemplate = "{% url 'api_save_report_meta' 999999 %}";
+        const url = urlTemplate.replace('999999', reportId);
+        
+        fetch(url, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+            },
+            body: JSON.stringify({
+                directories: selectedIds
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                location.reload();
+            } else {
+                alert('保存失败: ' + data.message);
+            }
+        })
+        .catch(error => {
+            alert('保存错误: ' + error);
+        });
+    }
+
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+</script>
+{% endblock %}

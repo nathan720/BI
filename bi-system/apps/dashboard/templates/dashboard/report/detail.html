@@ -1,0 +1,507 @@
+{% extends 'dashboard/base.html' %}
+{% load static %}
+
+{% block page_header %}
+<!-- Custom layout handles header -->
+{% endblock %}
+
+{% block content %}
+<link href="{% static 'dashboard/css/gridstack.min.css' %}" rel="stylesheet"/>
+<link href="{% static 'dashboard/lib/luckysheet/plugins/css/pluginsCss.css' %}?v=3" rel="stylesheet">
+<link href="{% static 'dashboard/lib/luckysheet/plugins/plugins.css' %}?v=3" rel="stylesheet">
+<link href="{% static 'dashboard/lib/luckysheet/css/luckysheet.css' %}?v=3" rel="stylesheet">
+<link href="{% static 'dashboard/lib/luckysheet/assets/iconfont/iconfont.css' %}?v=3" rel="stylesheet">
+<script src="{% static 'dashboard/js/gridstack-all.js' %}"></script>
+<style>
+    .grid-stack-item-content {
+        background-color: #fff;
+    }
+    .sidebar-viewer {
+        height: calc(100vh - 100px);
+        overflow-y: auto;
+    }
+    .content-viewer {
+        height: calc(100vh - 100px);
+        overflow-y: auto;
+    }
+    /* Scrollbar styling for webkit */
+    ::-webkit-scrollbar {
+        width: 6px;
+        height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+        background: #f1f1f1; 
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #ccc; 
+        border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #aaa; 
+    }
+</style>
+
+<div class="row g-0 h-100">
+    <!-- Sidebar -->
+    <div class="col-md-3 col-lg-2 border-end bg-white sidebar-viewer d-none d-md-block ps-0">
+         <div class="p-3">
+            <h6 class="sidebar-heading px-2 mb-3 text-muted text-uppercase small fw-bold d-flex align-items-center">
+              <i class="bi bi-folder2-open me-2"></i> 报表目录
+            </h6>
+            <div class="list-group list-group-flush">
+                {% include "dashboard/report/tree_node_viewer.html" with nodes=directory_tree %}
+                
+                {% for report in root_reports %}
+                <a href="{% url 'report_detail' report.id %}" class="list-group-item list-group-item-action border-0 py-2 small {% if report.id == current_report_id %}bg-primary text-white rounded{% else %}text-secondary{% endif %}">
+                    <i class="bi bi-bar-chart-line me-2"></i> {{ report.name }}
+                </a>
+                {% endfor %}
+                
+                {% if not directory_tree and not root_reports %}
+                <div class="text-muted small text-center py-3">暂无报表</div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="col-md-9 col-lg-10 p-3 content-viewer bg-light">
+        <!-- Header Actions -->
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <h5 class="mb-0 text-dark fw-bold">{{ report.name }}</h5>
+        </div>
+
+        <div class="card shadow-sm border-0" style="min-height: 200px;">
+            <div class="card-body">
+                {% if error %}
+                    <div class="alert alert-danger">{{ error }}</div>
+                {% endif %}
+                
+                {% if visual_error %}
+                    <div class="alert alert-warning">{{ visual_error }}</div>
+                {% endif %}
+
+                {% if report.external_url %}
+                    <!-- External Link IFrame -->
+                    <div class="w-100" style="height: 80vh;">
+                        <iframe src="{{ report.external_url }}" class="w-100 h-100 border-0 rounded"></iframe>
+                    </div>
+                {% elif report.code|slice:":9" == "external_" %}
+                    <!-- External Link IFrame -->
+                    <div class="w-100" style="height: 80vh;">
+                        <iframe src="{{ report.description }}" class="w-100 h-100 border-0 rounded"></iframe>
+                    </div>
+                {% elif has_visual_charts %}
+                    <!-- ECharts Visual Rendering -->
+                    <div class="grid-stack">
+                        {% for chart in charts_data %}
+                        <div class="grid-stack-item" 
+                             gs-x="{{ chart.config.x|default:0 }}" 
+                             gs-y="{{ chart.config.y|default:0 }}" 
+                             gs-w="{{ chart.config.w|default:6 }}" 
+                             gs-h="{{ chart.config.h|default:4 }}">
+                            <div class="grid-stack-item-content card h-100 shadow-sm border">
+                                {% if chart.config.card_title_show != False %}
+                                <div class="card-header bg-white border-bottom-0 fw-bold py-2" style="{% if chart.config.title_color %}color: {{ chart.config.title_color }};{% endif %}">
+                                    {{ chart.title|default:"未命名图表" }}
+                                </div>
+                                {% endif %}
+                                <div class="card-body position-relative p-2" style="overflow: hidden;">
+                                    {% if chart.error %}
+                                        <div class="d-flex align-items-center justify-content-center h-100 text-danger text-center p-2">
+                                            <div>
+                                                <i class="bi bi-exclamation-triangle fs-4"></i><br>
+                                                <span class="small">{{ chart.error }}</span>
+                                            </div>
+                                        </div>
+                                    {% elif chart.type == 'table' %}
+                                        <div class="d-flex flex-column h-100 w-100">
+                                            <!-- Toolbar -->
+                                            <div class="d-flex justify-content-end p-2 border-bottom bg-light">
+                                                <button class="btn btn-sm btn-outline-secondary" onclick="downloadTableData('{{ forloop.counter0 }}', '{{ chart.title|escapejs }}')">
+                                                    <i class="bi bi-download"></i> 导出数据
+                                                </button>
+                                            </div>
+                                            <!-- Table Content -->
+                                            <div class="flex-grow-1 overflow-hidden p-0 position-relative">
+                                                <div id="luckysheet-container-{{ forloop.counter0 }}" style="width:100%; height:100%;"></div>
+                                            </div>
+                                            <!-- Data for Export -->
+                                            <script type="application/json" id="table-data-{{ forloop.counter0 }}">
+                                                {
+                                                    "columns": {{ chart.columns|safe }},
+                                                    "data": {{ chart.data|safe }}
+                                                }
+                                            </script>
+                                        </div>
+                                    {% else %}
+                                        <div id="chart-container-{{ forloop.counter0 }}" class="w-100 h-100"></div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+                {% elif report_data %}
+                    <!-- Legacy/Default Table Rendering -->
+                    {% for item in report_data %}
+                    <div class="card mb-4 border shadow-sm">
+                        <div class="card-header bg-light">
+                            <h6 class="mb-0">数据集: {{ item.dataset_name }}</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            {% if item.error %}
+                                <div class="alert alert-danger m-3">{{ item.error }}</div>
+                            {% else %}
+                                <div class="table-responsive">
+                                    <table class="table table-striped table-hover mb-0">
+                                        <thead>
+                                            <tr>
+                                                {% for col in item.columns %}
+                                                <th>{{ col }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% for row in item.data %}
+                                            <tr>
+                                                {% for cell in row %}
+                                                <td>{{ cell }}</td>
+                                                {% endfor %}
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="alert alert-info border-0 bg-light">
+                        <i class="bi bi-info-circle"></i> 暂无数据配置。请点击右上角“设计报表”进行配置。
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if has_visual_charts %}
+<script src="{% static 'dashboard/js/echarts.min.js' %}"></script>
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="{% static 'dashboard/lib/luckysheet/plugins/js/plugin.js' %}?v=3"></script>
+<script src="{% static 'dashboard/lib/luckysheet/luckysheet.umd.js' %}?v=3"></script>
+{{ charts_data|json_script:"charts-data" }}
+<script>
+    // --- Unified Formatter ---
+    window.biFormatter = {
+        format: function(value, type, suffix, script) {
+            if (value === null || value === undefined || value === '') return '';
+            
+            // Handle numeric parsing
+            let num = parseFloat(value);
+            if (isNaN(num) && type !== 'custom') return value + (suffix || '');
+
+            let res = value;
+            switch(type) {
+                case 'integer': 
+                    res = Math.round(num); 
+                    break;
+                case 'float1': 
+                    res = num.toFixed(1); 
+                    break;
+                case 'float2': 
+                    res = num.toFixed(2); 
+                    break;
+                case 'percent': 
+                    res = num.toFixed(2) + '%';
+                    break;
+                case 'currency': 
+                    // Chinese Yuan
+                    res = '¥' + num.toFixed(2); 
+                    break;
+                case 'custom':
+                    if (script) {
+                        try {
+                            const fn = new Function("value", script);
+                            res = fn(value);
+                        } catch(e) {
+                            console.error("Custom script error:", e);
+                            res = value;
+                        }
+                    } else {
+                        res = num;
+                    }
+                    break;
+                default:
+                    res = num;
+            }
+            
+            if (suffix && type !== 'percent' && type !== 'currency' && type !== 'custom') {
+                res = res + suffix;
+            } else if (suffix && (type === 'percent' || type === 'currency')) {
+                res = res + suffix;
+            }
+            
+            return res;
+        },
+        
+        // Helper for ECharts Label Formatter
+        // ECharts passes different params for Axis vs Series
+        formatAxis: function(value, type, suffix, script) {
+             return this.format(value, type, suffix, script);
+        },
+        
+        formatSeries: function(params, type, suffix, script) {
+            // params.value could be single value or array [x, y]
+            if (!params) return '';
+            let val = params.value;
+            if (Array.isArray(val) && val.length > 1) {
+                // Usually Y value is at index 1 for Cartesian, but Pyecharts sometimes maps differently.
+                // If it's a simple Bar/Line, data is often just value. 
+                // But if Dataset is used, it might be dimension mapped.
+                // Safe bet: if it's array, check dimension names or assume index 1 if 2D.
+                // However, Pyecharts often passes [x, y].
+                val = val[1]; 
+            }
+            // If val is still object/array, might be complex.
+            if (typeof val === 'object') return ''; // fallback
+            
+            return this.format(val, type, suffix, script);
+        },
+
+        formatTooltip: function(params, type, suffix, script) {
+            // Tooltip params is complex. 
+            let val = params.value;
+            if (Array.isArray(val) && val.length > 1) {
+                val = val[1];
+            }
+            return this.format(val, type, suffix, script);
+        }
+    };
+
+    // --- Render Luckysheet ---
+    function renderLuckysheet(containerId, cols, rows, chartConfig) {
+        if (!window.luckysheet) return;
+        
+        // Prepare data
+        let sheetData = [];
+        // Header
+        let headerRow = cols.map(c => ({ v: c, ct: { fa: "General", t: "g" }, m: c, bg: "#f6f8fa", bl: 1, fc: "#000", fw: 1 }));
+        sheetData.push(headerRow);
+        
+        // Rows
+        if (rows && rows.length > 0) {
+            rows.forEach(r => {
+                let rowData = [];
+                cols.forEach((c, i) => {
+                    // Handle object or array row
+                    let val = Array.isArray(r) ? r[i] : r[c];
+                    val = val !== null && val !== undefined ? val : "";
+                    rowData.push({ v: val, ct: { fa: "General", t: "g" }, m: String(val) });
+                });
+                sheetData.push(rowData);
+            });
+        }
+        
+        // Transform to celldata
+        let celldata = [];
+        
+        // If static mode (no dataset) and we have saved data, use it
+        if (chartConfig && !chartConfig.dataset_id && chartConfig.luckysheet_celldata) {
+            celldata = chartConfig.luckysheet_celldata;
+        } else {
+            sheetData.forEach((row, r) => {
+                row.forEach((cell, c) => {
+                    celldata.push({ r: r, c: c, v: cell });
+                });
+            });
+        }
+
+        const options = {
+            container: containerId,
+            lang: 'zh',
+            data: [{
+                "name": "Sheet1",
+                "celldata": celldata,
+                "config": {},
+                "index": 0,
+                "status": 1,
+                "order": 0
+            }],
+            showinfobar: false,
+            showsheetbar: false,
+            showstatisticBar: false,
+            enableAddRow: false,
+            enableAddBackTop: false,
+            sheetFormulaBar: false,
+            showtoolbar: false,
+            row: sheetData.length + 5,
+            column: cols.length + 2,
+            gridKey: containerId
+        };
+
+        // Apply saved config if available
+        if (chartConfig && chartConfig.luckysheet_data) {
+             options.data[0].config = chartConfig.luckysheet_data;
+        }
+
+        try {
+            luckysheet.create(options);
+        } catch (e) {
+            console.error("Luckysheet create error:", e);
+        }
+    }
+
+    // --- Table Export Function ---
+    window.downloadTableData = function(index, title) {
+        try {
+            const scriptId = 'table-data-' + index;
+            const el = document.getElementById(scriptId);
+            if (!el) {
+                alert('无法找到数据');
+                return;
+            }
+            const jsonData = JSON.parse(el.textContent);
+            const columns = jsonData.columns;
+            const data = jsonData.data;
+            
+            if (!columns || !data) {
+                alert('无数据可导出');
+                return;
+            }
+            
+            // Build CSV Content
+            let csvContent = "\uFEFF"; // BOM for Excel utf-8
+            csvContent += columns.join(",") + "\n";
+            
+            data.forEach(function(rowArray) {
+                let row = rowArray.map(function(field) {
+                    // Handle quotes and commas
+                    let str = String(field);
+                    if (str.indexOf(',') !== -1 || str.indexOf('"') !== -1 || str.indexOf('\n') !== -1) {
+                        str = '"' + str.replace(/"/g, '""') + '"';
+                    }
+                    return str;
+                });
+                csvContent += row.join(",") + "\n";
+            });
+            
+            // Trigger Download
+            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            const link = document.createElement("a");
+            const url = URL.createObjectURL(blob);
+            link.setAttribute("href", url);
+            link.setAttribute("download", (title || 'export') + ".csv");
+            link.style.visibility = 'hidden';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        } catch (e) {
+            console.error('Export failed:', e);
+            alert('导出失败: ' + e.message);
+        }
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        // Init Gridstack
+        GridStack.init({
+            staticGrid: true,
+            margin: 5,
+            cellHeight: 80,
+            column: 12,
+            float: true
+        });
+
+        const chartsData = JSON.parse(document.getElementById('charts-data').textContent);
+        
+        chartsData.forEach((chart, index) => {
+            if (chart.type === 'table' || chart.type === 'Table') {
+                const containerId = `luckysheet-container-${index}`;
+                // Delay slightly to ensure layout is ready
+                setTimeout(() => {
+                    renderLuckysheet(containerId, chart.columns, chart.data, chart.config);
+                }, 100);
+                return; 
+            }
+
+            const container = document.getElementById(`chart-container-${index}`);
+            if (!container) return;
+
+            const myChart = echarts.init(container);
+            
+            if (chart.pyecharts_options) {
+                // Use Pyecharts generated options
+                try {
+                    // Use new Function to parse options that might contain JS functions
+                    const option = new Function("return " + chart.pyecharts_options)();
+                    myChart.setOption(option);
+                } catch (e) {
+                    console.error("Failed to parse pyecharts options", e);
+                }
+            } else {
+                // Fallback: Legacy manual construction
+                // Prepare Data Source
+                // source: [ ['Col1', 'Col2'], [Val1, Val2], ... ]
+                const source = [chart.columns].concat(chart.data);
+                
+                const option = {
+                    tooltip: { trigger: 'axis' },
+                    legend: {},
+                    dataset: {
+                        source: source
+                    },
+                    xAxis: { type: 'category' },
+                    yAxis: {},
+                    series: []
+                };
+
+                // Configure Series
+                // Map dimensions if configured
+                const xCol = chart.config.x_axis;
+                const yCol = chart.config.y_axis;
+                
+                if (xCol && yCol) {
+                    // Find dimensions by name is tricky in 'dataset' if we don't know index
+                    // But ECharts dataset supports 'encode' by name
+                    option.series.push({
+                        type: chart.type,
+                        encode: {
+                            x: xCol,
+                            y: yCol
+                        }
+                    });
+                } else {
+                    // Fallback: Use first column as X, others as series
+                    // Or just add one series
+                    option.series.push({ type: chart.type });
+                }
+
+                // Special handling for Pie
+                if (chart.type === 'pie') {
+                    option.xAxis = undefined;
+                    option.yAxis = undefined;
+                    option.tooltip = { trigger: 'item' };
+                    option.series = [{
+                        type: 'pie',
+                        radius: ['40%', '70%'],
+                        encode: {
+                            itemName: xCol || chart.columns[0],
+                            value: yCol || chart.columns[1]
+                        }
+                    }];
+                }
+
+                myChart.setOption(option);
+            }
+            
+            // Resize handler
+            window.addEventListener('resize', function() {
+                myChart.resize();
+            });
+        });
+    });
+</script>
+{% endif %}
+{% endblock %}

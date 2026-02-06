@@ -1,0 +1,38 @@
+{% for node in nodes %}
+<div class="list-group-item border-0 p-0">
+    <div class="d-flex align-items-center w-100 group-action-container">
+        <!-- Toggle Icon for children -->
+        {% if node.children_dirs %}
+        <a href="#collapse-dir-{{ node.id }}" data-bs-toggle="collapse" class="text-decoration-none text-dark me-2" aria-expanded="true">
+            <i class="bi bi-caret-down-fill small"></i>
+        </a>
+        {% else %}
+        <span class="me-3"></span> <!-- Spacer -->
+        {% endif %}
+
+        <!-- Directory Link -->
+        <a href="?dir={{ node.id }}" class="flex-grow-1 text-decoration-none py-2 {% if current_dir_id == node.id %}text-primary fw-bold{% else %}text-dark{% endif %}">
+            <i class="bi bi-folder{% if current_dir_id == node.id %}-fill{% endif %} me-1 text-warning"></i>
+            {{ node.name }}
+        </a>
+
+        {% if mode == 'design' %}
+        <div class="ms-auto btn-group btn-group-sm opacity-0 group-action-buttons me-2">
+            <a href="{% url 'report_directory_edit' node.id %}?next=report_manage" class="btn btn-link text-secondary p-0 mx-1" title="编辑">
+                <i class="bi bi-pencil-square"></i>
+            </a>
+            <a href="{% url 'report_directory_delete' node.id %}?next=report_manage" class="btn btn-link text-danger p-0 mx-1" title="删除" onclick="return confirm('确定要删除这个目录吗？');">
+                <i class="bi bi-trash"></i>
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Recursive Children -->
+    {% if node.children_dirs %}
+    <div class="collapse show ms-3 border-start ps-2" id="collapse-dir-{{ node.id }}">
+        {% include "dashboard/report/tree_node.html" with nodes=node.children_dirs %}
+    </div>
+    {% endif %}
+</div>
+{% endfor %}

@@ -1,0 +1,55 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="card">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">菜单目录管理</h5>
+        <a href="{% url 'menu_create' %}" class="btn btn-primary btn-sm">新增菜单</a>
+    </div>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table class="table table-hover table-bordered">
+                <thead class="table-light">
+                    <tr>
+                        <th>名称</th>
+                        <th>编码</th>
+                        <th>路径</th>
+                        <th>图标</th>
+                        <th>排序</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in menu_tree %}
+                        <tr class="table-secondary">
+                            <td><i class="bi bi-folder"></i> <strong>{{ item.menu.name }}</strong></td>
+                            <td>{{ item.menu.code }}</td>
+                            <td>{{ item.menu.path }}</td>
+                            <td><i class="bi bi-{{ item.menu.icon }}"></i> {{ item.menu.icon }}</td>
+                            <td>{{ item.menu.sort_order }}</td>
+                            <td>
+                                <a href="{% url 'menu_edit' item.menu.id %}" class="btn btn-sm btn-outline-primary">编辑</a>
+                            </td>
+                        </tr>
+                        {% for child in item.children %}
+                            <tr>
+                                <td class="ps-5">└── {{ child.name }}</td>
+                                <td>{{ child.code }}</td>
+                                <td>{{ child.path }}</td>
+                                <td><i class="bi bi-{{ child.icon }}"></i> {{ child.icon }}</td>
+                                <td>{{ child.sort_order }}</td>
+                                <td>
+                                    <a href="{% url 'menu_edit' child.id %}" class="btn btn-sm btn-outline-primary">编辑</a>
+                                    <a href="{% url 'menu_delete' child.id %}" class="btn btn-sm btn-outline-danger" onclick="return confirm('确定删除该菜单吗？')">删除</a>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    {% empty %}
+                        <tr><td colspan="6" class="text-center">暂无数据</td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+{% endblock %}

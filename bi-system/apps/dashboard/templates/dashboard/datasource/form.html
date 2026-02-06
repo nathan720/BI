@@ -1,0 +1,86 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">{{ content_title }}</h5>
+            </div>
+            <div class="card-body">
+                <form method="post">
+                    {% csrf_token %}
+                    
+                    {% for field in form %}
+                    <div class="mb-3">
+                        <label for="{{ field.id_for_label }}" class="form-label">{{ field.label }}</label>
+                        {{ field }}
+                        {% if field.help_text %}
+                            <div class="form-text">{{ field.help_text }}</div>
+                        {% endif %}
+                        {% if field.errors %}
+                            <div class="invalid-feedback d-block">
+                                {{ field.errors }}
+                            </div>
+                        {% endif %}
+                    </div>
+                    {% endfor %}
+
+                    <div class="d-flex justify-content-between mt-4">
+                        <a href="{% url 'datasource_list' %}" class="btn btn-secondary">返回列表</a>
+                        <div>
+                            <button type="button" id="btn-test-conn" class="btn btn-info me-2">测试连接</button>
+                            <button type="submit" class="btn btn-primary">保存配置</button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('btn-test-conn').addEventListener('click', function() {
+    const btn = this;
+    const originalText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = '连接中...';
+
+    // Collect form data manually to ensure we get the right fields
+    // Django form fields have name attributes matching model fields
+    const form = document.querySelector('form');
+    const data = {
+        db_type: form.querySelector('[name=db_type]').value,
+        host: form.querySelector('[name=host]').value,
+        port: form.querySelector('[name=port]').value,
+        db_name: form.querySelector('[name=db_name]').value,
+        username: form.querySelector('[name=username]').value,
+        password: form.querySelector('[name=password]').value
+    };
+
+    fetch("{% url 'test_connection_params' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': document.querySelector('[name=csrfmiddlewaretoken]').value
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.success) {
+            alert('连接成功: ' + result.message);
+        } else {
+            alert('连接失败: ' + result.message);
+        }
+    })
+    .catch(error => {
+        alert('请求错误: ' + error);
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.textContent = originalText;
+    });
+});
+</script>
+{% endblock %}

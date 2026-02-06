@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - BI System</title>
+    {% load static %}
+    <link href="{% static 'dashboard/css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'dashboard/css/bootstrap-icons.css' %}" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            padding-top: 56px;
+        }
+        .main-content {
+            padding: 20px;
+            width: 100%;
+        }
+        /* Navbar customization if needed */
+        .navbar-brand {
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-expand-lg navbar-dark bg-dark fixed-top">
+  <div class="container-fluid">
+    <a class="navbar-brand" href="/">BI System</a>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav me-auto mb-2 mb-lg-0">
+        <li class="nav-item">
+          <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">首页</a>
+        </li>
+        {% for item in menus %}
+            {% if item.children %}
+                <li class="nav-item dropdown">
+                    <a class="nav-link dropdown-toggle {% for child in item.children %}{% if request.path == child.path %}active{% endif %}{% endfor %}" href="#" id="navbarDropdown-{{ item.menu.code }}" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                        {{ item.menu.name }}
+                    </a>
+                    <ul class="dropdown-menu" aria-labelledby="navbarDropdown-{{ item.menu.code }}">
+                        {% for child in item.children %}
+                            <li><a class="dropdown-item {% if request.path == child.path %}active{% endif %}" href="{{ child.path }}">{{ child.name }}</a></li>
+                        {% endfor %}
+                    </ul>
+                </li>
+            {% else %}
+                <li class="nav-item">
+                    <a class="nav-link {% if request.path == item.menu.path %}active{% endif %}" href="{{ item.menu.path }}">{{ item.menu.name }}</a>
+                </li>
+            {% endif %}
+        {% endfor %}
+      </ul>
+      <div class="d-flex align-items-center text-light">
+          <span class="me-3 small">Welcome, {{ request.user.username }}</span>
+          <a href="/admin/logout/" class="btn btn-outline-light btn-sm">Logout</a>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="main-content">
+    {% block page_header %}
+    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+        <h1 class="h4 mb-0">{{ title }}</h1>
+    </div>
+    {% endblock %}
+    
+    <div class="container-fluid p-0">
+        {% block content %}
+        {% endblock %}
+    </div>
+</div>
+
+<script src="{% static 'dashboard/js/bootstrap.bundle.min.js' %}"></script>
+</body>
+</html>

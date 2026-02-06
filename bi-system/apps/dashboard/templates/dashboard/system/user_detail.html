@@ -1,0 +1,65 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">用户详情: {{ user_obj.username }}</h5>
+                <a href="{% url 'user_list' %}" class="btn btn-sm btn-outline-secondary">返回列表</a>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label fw-bold">用户 ID</label>
+                    <div class="col-sm-9 pt-2">{{ user_obj.id }}</div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label fw-bold">用户名</label>
+                    <div class="col-sm-9 pt-2">{{ user_obj.username }}</div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label fw-bold">电子邮件</label>
+                    <div class="col-sm-9 pt-2">{{ user_obj.email|default:"-" }}</div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label fw-bold">账号状态</label>
+                    <div class="col-sm-9 pt-2">
+                        {% if user_obj.is_active %}
+                            <span class="badge bg-success">正常</span>
+                        {% else %}
+                            <span class="badge bg-danger">禁用</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label fw-bold">超级管理员</label>
+                    <div class="col-sm-9 pt-2">
+                        {% if user_obj.is_superuser %}
+                            <span class="badge bg-danger">是</span>
+                        {% else %}
+                            <span class="badge bg-secondary">否</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label fw-bold">注册时间</label>
+                    <div class="col-sm-9 pt-2">{{ user_obj.date_joined|date:"Y-m-d H:i:s" }}</div>
+                </div>
+                <div class="row mb-3">
+                    <label class="col-sm-3 col-form-label fw-bold">最后登录</label>
+                    <div class="col-sm-9 pt-2">{{ user_obj.last_login|default:"从未登录" }}</div>
+                </div>
+
+                <hr>
+
+                <div class="d-flex justify-content-end">
+                    <a href="{% url 'user_edit' user_obj.id %}" class="btn btn-primary me-2">编辑信息</a>
+                    {% if not user_obj.is_superuser %}
+                    <a href="{% url 'user_delete' user_obj.id %}" class="btn btn-danger" onclick="return confirm('确定要删除该用户吗？')">删除用户</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,43 @@
+{
+    "charts": [
+        {
+            "id": "chart_1770094959632",
+            "dataset_id": "2",
+            "dataset_name": null,
+            "title": "堆叠面积图",
+            "type": "line",
+            "w": 12,
+            "h": 7,
+            "card_title_show": true,
+            "category_col": "dim_time",
+            "value_col": "xs",
+            "series_col": "xm",
+            "aggregate": "sum",
+            "series_names": {},
+            "series_formats": {
+                "xs": "float2"
+            },
+            "series_calculations": {
+                "xs": "/10000"
+            },
+            "series_suffixes": {},
+            "filters": [],
+            "x": 0,
+            "y": 0,
+            "title_show": false,
+            "card_title_align": "center",
+            "area_style": false,
+            "x_axis_boundary_gap": false,
+            "toolbox_show": false,
+            "line_type": "solid",
+            "is_smooth": true,
+            "colors": "#b5267a, #7ab422, #ab7221, #4660c8",
+            "series_label_styles": {
+                "xs": {
+                    "show": true
+                }
+            },
+            "tooltip_show": true
+        }
+    ]
+}

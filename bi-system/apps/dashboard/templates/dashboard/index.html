@@ -1,0 +1,572 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }} - BI System</title>
+    <link href="{% static 'dashboard/css/bootstrap.min.css' %}" rel="stylesheet">
+    <link href="{% static 'dashboard/css/bootstrap-icons.css' %}" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #475569;
+            --accent-color: #3b82f6;
+        }
+        
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            color: #1e293b;
+            overflow-x: hidden;
+        }
+
+        /* Navbar */
+        .navbar {
+            padding: 1.5rem 0;
+            transition: all 0.3s ease;
+            background-color: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+        }
+        
+        .navbar-brand {
+            font-weight: 800;
+            font-size: 1.5rem;
+            color: var(--primary-color) !important;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-link {
+            font-weight: 500;
+            color: var(--secondary-color) !important;
+            margin: 0 1rem;
+        }
+        
+        .nav-link:hover {
+            color: var(--primary-color) !important;
+        }
+
+        .btn-primary-custom {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+            color: white;
+            padding: 0.6rem 1.5rem;
+            font-weight: 600;
+            border-radius: 50px;
+            transition: all 0.3s;
+        }
+
+        .btn-primary-custom:hover {
+            background-color: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(37, 99, 235, 0.2);
+        }
+        
+        .btn-outline-custom {
+            color: var(--primary-color);
+            border: 2px solid var(--primary-color);
+            padding: 0.6rem 1.5rem;
+            font-weight: 600;
+            border-radius: 50px;
+            transition: all 0.3s;
+        }
+        
+        .btn-outline-custom:hover {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        /* Hero Section */
+        .hero-section {
+            padding: 8rem 0 6rem;
+            background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .hero-title {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.2;
+            margin-bottom: 1.5rem;
+            background: linear-gradient(to right, #2563eb, #1d4ed8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: #64748b;
+            margin-bottom: 2.5rem;
+            max-width: 600px;
+        }
+        
+        .hero-image {
+            border-radius: 1rem;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15);
+            transform: perspective(1000px) rotateY(-5deg) rotateX(2deg);
+            transition: transform 0.5s ease;
+            border: 1px solid rgba(255,255,255,0.5);
+            background: white;
+        }
+        
+        .hero-image:hover {
+            transform: perspective(1000px) rotateY(0deg) rotateX(0deg);
+        }
+
+        /* Features */
+        .features-section {
+            padding: 6rem 0;
+            background-color: white;
+        }
+        
+        .feature-card {
+            padding: 2rem;
+            border-radius: 1rem;
+            transition: all 0.3s;
+            border: 1px solid #f1f5f9;
+            height: 100%;
+        }
+        
+        .feature-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            border-color: transparent;
+        }
+        
+        .feature-icon {
+            width: 3rem;
+            height: 3rem;
+            background-color: #eff6ff;
+            color: var(--primary-color);
+            border-radius: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .section-title {
+            font-size: 2.25rem;
+            font-weight: 700;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+        
+        .section-subtitle {
+            text-align: center;
+            color: #64748b;
+            margin-bottom: 4rem;
+            max-width: 700px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        /* Stats */
+        .stats-section {
+            padding: 5rem 0;
+            background-color: #f8fafc;
+        }
+        
+        .stat-item {
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 3rem;
+            font-weight: 800;
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+        
+        .stat-label {
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        /* CTA */
+        .cta-section {
+            padding: 6rem 0;
+            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            color: white;
+            text-align: center;
+        }
+        
+        .cta-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+        }
+        
+        .cta-text {
+            font-size: 1.25rem;
+            margin-bottom: 2.5rem;
+            opacity: 0.9;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .btn-light-custom {
+            background-color: white;
+            color: var(--primary-color);
+            padding: 0.8rem 2rem;
+            font-weight: 600;
+            border-radius: 50px;
+            font-size: 1.1rem;
+            transition: all 0.3s;
+        }
+        
+        .btn-light-custom:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            background-color: #f8fafc;
+        }
+
+        /* Footer */
+        .footer {
+            padding: 4rem 0 2rem;
+            background-color: #0f172a;
+            color: #94a3b8;
+        }
+        
+        .footer-title {
+            color: white;
+            font-weight: 700;
+            font-size: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .footer-link {
+            color: #94a3b8;
+            text-decoration: none;
+            display: block;
+            margin-bottom: 0.8rem;
+            transition: color 0.2s;
+        }
+        
+        .footer-link:hover {
+            color: white;
+        }
+        
+        .footer-bottom {
+            margin-top: 3rem;
+            padding-top: 2rem;
+            border-top: 1px solid #1e293b;
+            text-align: center;
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg fixed-top">
+        <div class="container">
+            <a class="navbar-brand" href="/">
+                <i class="bi bi-graph-up-arrow me-2"></i>BI System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav mx-auto">
+                    <li class="nav-item">
+                        <a class="nav-link" href="#features">功能特性</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#solutions">解决方案</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#pricing">价格方案</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#about">关于我们</a>
+                    </li>
+                </ul>
+                <div class="d-flex gap-2">
+                    {% if is_authenticated %}
+                        <a href="{% url 'report_analysis' %}" class="btn btn-primary-custom">
+                            进入控制台 <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    {% else %}
+                        <a href="/admin/login/" class="btn btn-outline-custom">登录</a>
+                        <a href="/admin/login/" class="btn btn-primary-custom">免费试用</a>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero-section">
+        <div class="container">
+            <div class="row align-items-center">
+                <div class="col-lg-6">
+                    <h1 class="hero-title">
+                        让数据驱动<br>您的每一次决策
+                    </h1>
+                    <p class="hero-subtitle">
+                        新一代智能商业分析平台，连接您的所有数据，通过拖拽式操作快速构建可视化报表，即时洞察业务趋势。
+                    </p>
+                    <div class="d-flex gap-3">
+                        {% if is_authenticated %}
+                            <a href="{% url 'report_analysis' %}" class="btn btn-primary-custom btn-lg">
+                                立即使用 <i class="bi bi-arrow-right ms-2"></i>
+                            </a>
+                        {% else %}
+                            <a href="/admin/login/" class="btn btn-primary-custom btn-lg">
+                                免费开始使用
+                            </a>
+                            <a href="#features" class="btn btn-outline-custom btn-lg">
+                                了解更多
+                            </a>
+                        {% endif %}
+                    </div>
+                    <div class="mt-4 pt-3 d-flex align-items-center gap-4 text-muted small">
+                        <span><i class="bi bi-check-circle-fill text-success me-1"></i> 无需代码</span>
+                        <span><i class="bi bi-check-circle-fill text-success me-1"></i> 实时更新</span>
+                        <span><i class="bi bi-check-circle-fill text-success me-1"></i> 安全可靠</span>
+                    </div>
+                </div>
+                <div class="col-lg-6 mt-5 mt-lg-0">
+                    <div class="hero-image p-2">
+                        <!-- Simulated Dashboard Preview -->
+                        <div class="bg-light rounded overflow-hidden" style="height: 350px; position: relative;">
+                            <!-- Sidebar -->
+                            <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 60px; background: #1e293b;"></div>
+                            <!-- Header -->
+                            <div style="position: absolute; left: 60px; top: 0; right: 0; height: 50px; background: white; border-bottom: 1px solid #e2e8f0;"></div>
+                            <!-- Content -->
+                            <div style="position: absolute; left: 80px; top: 70px; right: 20px; bottom: 20px;">
+                                <div class="row g-3">
+                                    <div class="col-4">
+                                        <div class="bg-white rounded shadow-sm h-100 p-3">
+                                            <div style="height: 8px; width: 60%; background: #e2e8f0; border-radius: 4px; margin-bottom: 10px;"></div>
+                                            <div style="height: 20px; width: 40%; background: #3b82f6; border-radius: 4px;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="bg-white rounded shadow-sm h-100 p-3">
+                                            <div style="height: 8px; width: 60%; background: #e2e8f0; border-radius: 4px; margin-bottom: 10px;"></div>
+                                            <div style="height: 20px; width: 40%; background: #10b981; border-radius: 4px;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="bg-white rounded shadow-sm h-100 p-3">
+                                            <div style="height: 8px; width: 60%; background: #e2e8f0; border-radius: 4px; margin-bottom: 10px;"></div>
+                                            <div style="height: 20px; width: 40%; background: #f59e0b; border-radius: 4px;"></div>
+                                        </div>
+                                    </div>
+                                    <div class="col-8">
+                                        <div class="bg-white rounded shadow-sm p-3" style="height: 180px;">
+                                            <div style="height: 8px; width: 30%; background: #e2e8f0; border-radius: 4px; margin-bottom: 20px;"></div>
+                                            <div class="d-flex align-items-end justify-content-between h-75 px-2">
+                                                <div style="width: 10%; height: 40%; background: #dbeafe; border-radius: 4px 4px 0 0;"></div>
+                                                <div style="width: 10%; height: 60%; background: #bfdbfe; border-radius: 4px 4px 0 0;"></div>
+                                                <div style="width: 10%; height: 80%; background: #93c5fd; border-radius: 4px 4px 0 0;"></div>
+                                                <div style="width: 10%; height: 50%; background: #60a5fa; border-radius: 4px 4px 0 0;"></div>
+                                                <div style="width: 10%; height: 70%; background: #3b82f6; border-radius: 4px 4px 0 0;"></div>
+                                                <div style="width: 10%; height: 90%; background: #2563eb; border-radius: 4px 4px 0 0;"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-4">
+                                        <div class="bg-white rounded shadow-sm p-3" style="height: 180px;">
+                                            <div style="height: 8px; width: 40%; background: #e2e8f0; border-radius: 4px; margin-bottom: 20px;"></div>
+                                            <div class="rounded-circle border border-4 border-primary mx-auto mt-3" style="width: 100px; height: 100px; border-top-color: transparent !important;"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features-section">
+        <div class="container">
+            <h2 class="section-title">为什么选择我们</h2>
+            <p class="section-subtitle">
+                我们提供全方位的数据分析能力，帮助企业打破数据孤岛，实现数字化转型。
+            </p>
+            
+            <div class="row g-4">
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-grid-1x2-fill"></i>
+                        </div>
+                        <h4>拖拽式报表设计</h4>
+                        <p class="text-muted mt-3">
+                            所见即所得的设计体验，无需编写代码，通过简单的拖拽即可创建精美的可视化报表。
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-lightning-charge-fill"></i>
+                        </div>
+                        <h4>实时数据处理</h4>
+                        <p class="text-muted mt-3">
+                            支持多种数据源接入，秒级数据更新，让您随时掌握业务最新动态，快速响应市场变化。
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-people-fill"></i>
+                        </div>
+                        <h4>团队协作共享</h4>
+                        <p class="text-muted mt-3">
+                            灵活的权限管理体系，支持一键分享报表，促进团队内部数据流通与协作。
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-shield-check-fill"></i>
+                        </div>
+                        <h4>企业级安全</h4>
+                        <p class="text-muted mt-3">
+                            完备的数据权限控制，支持行级数据权限，确保核心数据资产安全。
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-display"></i>
+                        </div>
+                        <h4>多端自适应</h4>
+                        <p class="text-muted mt-3">
+                            一次设计，多端查看。完美适配 PC、平板和移动端，随时随地查看数据。
+                        </p>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="feature-card">
+                        <div class="feature-icon">
+                            <i class="bi bi-cpu-fill"></i>
+                        </div>
+                        <h4>智能分析引擎</h4>
+                        <p class="text-muted mt-3">
+                            内置多种分析模型，自动识别数据特征，为您推荐最合适的图表展示形式。
+                        </p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stats Section -->
+    <section class="stats-section">
+        <div class="container">
+            <div class="row">
+                <div class="col-md-3 stat-item">
+                    <div class="stat-number">500+</div>
+                    <div class="stat-label">服务企业</div>
+                </div>
+                <div class="col-md-3 stat-item">
+                    <div class="stat-number">10k+</div>
+                    <div class="stat-label">活跃用户</div>
+                </div>
+                <div class="col-md-3 stat-item">
+                    <div class="stat-number">1M+</div>
+                    <div class="stat-label">日处理数据量</div>
+                </div>
+                <div class="col-md-3 stat-item">
+                    <div class="stat-number">99.9%</div>
+                    <div class="stat-label">系统可用性</div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <div class="container">
+            <h2 class="cta-title">准备好开始了吗？</h2>
+            <p class="cta-text">
+                加入数千家领先企业的行列，开始您的数据驱动之旅。
+            </p>
+            {% if is_authenticated %}
+                <a href="{% url 'report_analysis' %}" class="btn btn-light-custom">
+                    进入控制台
+                </a>
+            {% else %}
+                <a href="/admin/login/" class="btn btn-light-custom">
+                    免费注册试用
+                </a>
+            {% endif %}
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+        <div class="container">
+            <div class="row">
+                <div class="col-lg-4 mb-4 mb-lg-0">
+                    <a href="/" class="d-flex align-items-center mb-3 text-white text-decoration-none">
+                        <i class="bi bi-graph-up-arrow me-2 fs-4"></i>
+                        <span class="fs-4 fw-bold">BI System</span>
+                    </a>
+                    <p class="text-secondary">
+                        专注于为企业提供简单、高效、智能的数据分析解决方案。
+                    </p>
+                </div>
+                <div class="col-lg-2 col-md-4 mb-4 mb-md-0">
+                    <h5 class="footer-title">产品</h5>
+                    <a href="#" class="footer-link">功能特性</a>
+                    <a href="#" class="footer-link">解决方案</a>
+                    <a href="#" class="footer-link">更新日志</a>
+                </div>
+                <div class="col-lg-2 col-md-4 mb-4 mb-md-0">
+                    <h5 class="footer-title">资源</h5>
+                    <a href="#" class="footer-link">帮助文档</a>
+                    <a href="#" class="footer-link">API 文档</a>
+                    <a href="#" class="footer-link">社区论坛</a>
+                </div>
+                <div class="col-lg-2 col-md-4 mb-4 mb-md-0">
+                    <h5 class="footer-title">公司</h5>
+                    <a href="#" class="footer-link">关于我们</a>
+                    <a href="#" class="footer-link">加入我们</a>
+                    <a href="#" class="footer-link">联系方式</a>
+                </div>
+                <div class="col-lg-2 col-md-4">
+                    <h5 class="footer-title">关注我们</h5>
+                    <div class="d-flex gap-3">
+                        <a href="#" class="text-secondary fs-5"><i class="bi bi-wechat"></i></a>
+                        <a href="#" class="text-secondary fs-5"><i class="bi bi-sina-weibo"></i></a>
+                        <a href="#" class="text-secondary fs-5"><i class="bi bi-github"></i></a>
+                    </div>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p class="mb-0">&copy; 2024 BI System. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+
+    <script src="{% static 'dashboard/js/bootstrap.bundle.min.js' %}"></script>
+    <script>
+        // Navbar scroll effect
+        window.addEventListener('scroll', function() {
+            const navbar = document.querySelector('.navbar');
+            if (window.scrollY > 50) {
+                navbar.classList.add('shadow-sm');
+                navbar.style.backgroundColor = 'rgba(255, 255, 255, 0.98)';
+            } else {
+                navbar.classList.remove('shadow-sm');
+                navbar.style.backgroundColor = 'rgba(255, 255, 255, 0.95)';
+            }
+        });
+    </script>
+</body>
+</html>
