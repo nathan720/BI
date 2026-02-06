@@ -100,6 +100,14 @@
         height: 100%;
         position: relative;
     }
+    
+    /* Ensure GridStack resize handles are visible over Luckysheet/Canvas */
+    .grid-stack-item .ui-resizable-handle {
+        z-index: 9999 !important;
+    }
+    .grid-stack-item.ui-resizable-resizing .ui-resizable-handle {
+        z-index: 10000 !important;
+    }
 </style>
 <link href="{% static 'dashboard/lib/luckysheet/plugins/css/pluginsCss.css' %}" rel="stylesheet">
 <link href="{% static 'dashboard/lib/luckysheet/css/luckysheet.css' %}" rel="stylesheet">
@@ -1924,9 +1932,10 @@
             luckysheet.create(options);
             
             // Add Drop Listener to the container after creation
-            setTimeout(() => {
+                    setTimeout(() => {
                 const container = document.getElementById(containerId);
                 if (container) {
+                     // Ensure the container can receive drop events
                      container.addEventListener('dragover', function(e) {
                          e.preventDefault();
                          e.dataTransfer.dropEffect = 'copy';
@@ -1935,12 +1944,14 @@
                      container.addEventListener('drop', function(e) {
                          e.preventDefault();
                          const column = e.dataTransfer.getData("text/plain");
+                         console.log("Dropped column:", column); // Debug
+                         
                          if (column) {
                              // Use luckysheet.setCellValue(r, c, val) for the currently selected cell
-                             // Luckysheet selection range
                              if (typeof luckysheet !== 'undefined' && luckysheet.getRange) {
                                  const range = luckysheet.getRange(); 
-                                 if (range && range.length > 0) {
+                                 // Check if range is valid and has at least one selection
+                                 if (range && range.length > 0 && range[0].row) {
                                      const r = range[0].row[0];
                                      const c = range[0].column[0];
                                      
@@ -1953,8 +1964,12 @@
                                          options.hook.updated({});
                                      }
                                  } else {
-                                     alert('请先在表格中点击选中一个单元格，再拖入列名');
+                                     // If no cell selected, maybe try to find the last empty cell? 
+                                     // For now, give a clearer alert.
+                                     alert('请先在表格中点击选中一个单元格，然后拖入数据列名。');
                                  }
+                             } else {
+                                 console.error("Luckysheet object not found or invalid");
                              }
                          }
                      });

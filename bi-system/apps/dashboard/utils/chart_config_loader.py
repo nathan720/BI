@@ -34,6 +34,12 @@ def load_chart_configs():
 
         # Merge Global into Specific
         for chart_type, config in chart_configs.items():
+            # Special handling for Table component to keep its config separate as requested
+            if chart_type == 'Table':
+                if "全局配置" not in config:
+                    config["全局配置"] = []
+                continue
+
             if "全局配置" in config:
                 # Prepend global parameters to ensure they appear first (or as appropriate)
                 # We use a list comprehension to avoid modifying the original global_params list objects if we were mutable, 
