@@ -71,6 +71,160 @@
             <h5 class="mb-0 text-dark fw-bold">{{ report.name }}</h5>
         </div>
 
+        {% if report_params %}
+        <div class="card shadow-sm border-0 mb-3">
+            <div class="card-body py-2">
+                <form method="get" id="param-form" class="row g-2 align-items-center">
+                    <!-- Parameters will be rendered here by JS -->
+                    <div id="param-container" style="display: contents;"></div>
+                    
+                    <div class="col-auto ms-auto">
+                        <button type="submit" class="btn btn-sm btn-primary">
+                            <i class="bi bi-search"></i> 查询
+                        </button>
+                        <a href="{% url 'report_detail' report.id %}" class="btn btn-sm btn-outline-secondary">
+                            <i class="bi bi-arrow-counterclockwise"></i> 重置
+                        </a>
+                    </div>
+                </form>
+            </div>
+        </div>
+        {{ report_params|json_script:"report-params-data" }}
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                const params = JSON.parse(document.getElementById('report-params-data').textContent);
+                const container = document.getElementById('param-container');
+                
+                params.forEach(p => {
+                    const wrapper = document.createElement('div');
+                    wrapper.className = 'col-auto';
+                    
+                    // Label (Skip for button)
+                    if (p.type !== 'button') {
+                        const label = document.createElement('label');
+                        label.className = 'col-form-label col-form-label-sm fw-bold me-1';
+                        label.innerText = p.label || p.key;
+                        wrapper.appendChild(label);
+                    }
+                    
+                    // Input Container
+                    const inputDiv = document.createElement('div');
+                    inputDiv.className = 'd-inline-block';
+                    if (p.width) {
+                        inputDiv.style.width = p.width + 'px';
+                    }
+                    
+                    let input;
+                    // Apply Custom Style
+                    const customStyle = p.style || '';
+                    const customFormat = p.format || '';
+                    
+                    if (p.type === 'select') {
+                        input = document.createElement('select');
+                        input.className = 'form-select form-select-sm';
+                        if (customStyle) input.style.cssText = customStyle;
+                        
+                        // Parse options: "val1:Label1,val2:Label2" or "val1,val2" or newlines
+                        const opts = (p.options || '').split(/[\n,]/).filter(s => s.trim());
+                        
+                        // Add empty option if no default
+                        if (!p.default) {
+                             const emptyOpt = document.createElement('option');
+                             emptyOpt.value = '';
+                             emptyOpt.text = '请选择';
+                             input.appendChild(emptyOpt);
+                        }
+                        
+                        opts.forEach(optStr => {
+                            let val = optStr.trim();
+                            let txt = val;
+                            if (val.includes(':')) {
+                                const parts = val.split(':');
+                                val = parts[0].trim();
+                                txt = parts[1].trim();
+                            }
+                            const option = document.createElement('option');
+                            option.value = val;
+                            option.text = txt;
+                            if (val == p.current_value) option.selected = true;
+                            input.appendChild(option);
+                        });
+                        
+                    } else if (p.type === 'date') {
+                        input = document.createElement('input');
+                        input.type = 'date';
+                        input.className = 'form-control form-control-sm';
+                        input.value = p.current_value || '';
+                        if (customStyle) input.style.cssText = customStyle;
+                        if (customFormat) input.placeholder = customFormat;
+                    } else if (p.type === 'number') {
+                        input = document.createElement('input');
+                        input.type = 'number';
+                        input.className = 'form-control form-control-sm';
+                        input.value = p.current_value || '';
+                        if (customStyle) input.style.cssText = customStyle;
+                        if (customFormat) {
+                            input.placeholder = customFormat;
+                            // Try to infer step from format (e.g. 0.01)
+                            if (customFormat.includes('.')) {
+                                const decimals = customFormat.split('.')[1].length;
+                                input.step = Math.pow(10, -decimals);
+                            }
+                        }
+                    } else if (p.type === 'button') {
+                        input = document.createElement('button');
+                        input.type = 'submit';
+                        input.className = 'btn btn-sm btn-primary w-100';
+                        input.innerText = p.label || '查询';
+                        if (customStyle) input.style.cssText = customStyle;
+                    } else if (p.type === 'multiselect') {
+                         input = document.createElement('select');
+                         input.className = 'form-select form-select-sm';
+                         input.multiple = true;
+                         if (customStyle) input.style.cssText = customStyle;
+                         
+                         // Parse options (Same as select)
+                         const opts = (p.options || '').split(/[\n,]/).filter(s => s.trim());
+                         opts.forEach(optStr => {
+                            let val = optStr.trim();
+                            let txt = val;
+                            if (val.includes(':')) {
+                                const parts = val.split(':');
+                                val = parts[0].trim();
+                                txt = parts[1].trim();
+                            }
+                            const option = document.createElement('option');
+                            option.value = val;
+                            option.text = txt;
+                            
+                            // Handle current_value which might be a list for multiselect
+                            if (Array.isArray(p.current_value)) {
+                                if (p.current_value.includes(val)) option.selected = true;
+                            } else if (val == p.current_value) {
+                                option.selected = true;
+                            }
+                            input.appendChild(option);
+                        });
+                    } else {
+                        input = document.createElement('input');
+                        input.type = 'text';
+                        input.className = 'form-control form-control-sm';
+                        input.value = p.current_value || '';
+                        if (customStyle) input.style.cssText = customStyle;
+                        if (customFormat) input.placeholder = customFormat;
+                    }
+                    
+                    if (p.type !== 'button') {
+                        input.name = p.key;
+                    }
+                    inputDiv.appendChild(input);
+                    wrapper.appendChild(inputDiv);
+                    container.appendChild(wrapper);
+                });
+            });
+        </script>
+        {% endif %}
+
         <div class="card shadow-sm border-0" style="min-height: 200px;">
             <div class="card-body">
                 {% if error %}

@@ -4,8 +4,330 @@
 {% block content %}
 <link href="{% static 'dashboard/css/gridstack.min.css' %}" rel="stylesheet"/>
 <script src="{% static 'dashboard/js/gridstack-all.js' %}"></script>
+<script>
+    // --- Data Filter Logic ---
+
+    function addFilterItem() {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.dataset_id) {
+            alert('请先绑定数据集');
+            return;
+        }
+        
+        const filters = config.filters || [];
+        filters.push({ col: '', op: 'eq', val: '' });
+        config.filters = filters;
+        
+        renderFilters(filters);
+    }
+
+    function removeFilterItem(index) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.filters) return;
+        
+        config.filters.splice(index, 1);
+        renderFilters(config.filters);
+        saveLayoutToLocal();
+        refreshPreview(currentChartId);
+    }
+
+    function updateFilterItem(index, key, value) {
+        if (!currentChartId) return;
+        const config = chartsConfig[currentChartId];
+        if (!config.filters || !config.filters[index]) return;
+        
+        config.filters[index][key] = value;
+        saveLayoutToLocal();
+        
+        if (key === 'op') {
+            // Update disabled state of input
+            const container = document.getElementById('filterContainer');
+            if (container && container.children[index]) {
+                const input = container.children[index].querySelector('input');
+                if (input) {
+                    if (value === 'is_null' || value === 'is_not_null') {
+                        input.disabled = true;
+                        input.value = ''; 
+                        config.filters[index].val = '';
+                    } else {
+                        input.disabled = false;
+                    }
+                }
+            }
+        }
+        
+        refreshPreview(currentChartId);
+    }
+
+    function renderFilters(filters) {
+        const container = document.getElementById('filterContainer');
+        if (!container) return; // Guard
+        
+        const emptyMsg = '<div class="text-muted small text-center py-2" id="filterEmptyMsg">无筛选条件</div>';
+        
+        if (!filters || filters.length === 0) {
+            container.innerHTML = emptyMsg;
+            return;
+        }
+        
+        container.innerHTML = ''; 
+        
+        // Get columns
+        let cols = [];
+        if (currentChartId && chartsConfig[currentChartId]) {
+            const config = chartsConfig[currentChartId];
+            cols = (config && config.dataset_id && datasetColumns[config.dataset_id]) ? datasetColumns[config.dataset_id] : [];
+        }
+        
+        filters.forEach((f, idx) => {
+            const row = document.createElement('div');
+            row.className = 'd-flex align-items-center mb-2 gap-1';
+            
+            // Column Select
+            let colOptions = `<option value="">选择字段</option>`;
+            cols.forEach(c => {
+                colOptions += `<option value="${c}" ${f.col === c ? 'selected' : ''}>${c}</option>`;
+            });
+            
+            // Operator Select
+            const ops = [
+                {v: 'eq', l: '等于 (=)'},
+                {v: 'ne', l: '不等于 (!=)'},
+                {v: 'gt', l: '大于 (>)'},
+                {v: 'lt', l: '小于 (<)'},
+                {v: 'gte', l: '大于等于 (>=)'},
+                {v: 'lte', l: '小于等于 (<=)'},
+                {v: 'contains', l: '包含 (Like)'},
+                {v: 'startswith', l: '开头是'},
+                {v: 'endswith', l: '结尾是'},
+                {v: 'is_null', l: '为空'},
+                {v: 'is_not_null', l: '不为空'}
+            ];
+            let opOptions = '';
+            ops.forEach(o => {
+                opOptions += `<option value="${o.v}" ${f.op === o.v ? 'selected' : ''}>${o.l}</option>`;
+            });
+            
+            row.innerHTML = `
+                <select class="form-select form-select-sm" style="width: 30%; font-size: 11px;" onchange="updateFilterItem(${idx}, 'col', this.value)">
+                    ${colOptions}
+                </select>
+                <select class="form-select form-select-sm" style="width: 30%; font-size: 11px;" onchange="updateFilterItem(${idx}, 'op', this.value)">
+                    ${opOptions}
+                </select>
+                <input type="text" class="form-control form-control-sm" style="width: 30%; font-size: 11px;" 
+                    value="${f.val || ''}" placeholder="值" 
+                    onchange="updateFilterItem(${idx}, 'val', this.value)"
+                    ${(f.op === 'is_null' || f.op === 'is_not_null') ? 'disabled' : ''}>
+                <button class="btn btn-xs btn-outline-danger py-0 px-1" onclick="removeFilterItem(${idx})">
+                    <i class="bi bi-x"></i>
+                </button>
+            `;
+            
+            container.appendChild(row);
+        });
+    }
+
+    // Function to configure cell indicator and style
+    function configureCellIndicator(row, col, indicator, chartId) {
+        // Create a modal for configuration
+        const modalHtml = `
+            <div class="modal fade" id="cellConfigModal" tabindex="-1" aria-labelledby="cellConfigModalLabel" aria-hidden="true">
+                <div class="modal-dialog">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h5 class="modal-title" id="cellConfigModalLabel">配置单元格指标和样式</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="mb-3">
+                                <label class="form-label">单元格位置</label>
+                                <input type="text" class="form-control" value="行 ${row + 1}, 列 ${col + 1}" disabled>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">指标名称</label>
+                                <input type="text" class="form-control" id="indicatorName" value="${indicator}">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">背景颜色</label>
+                                <input type="color" class="form-control form-control-color" id="bgColor" value="#e7f1ff">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">文字颜色</label>
+                                <input type="color" class="form-control form-control-color" id="textColor" value="#0d6efd">
+                            </div>
+                            <div class="mb-3 form-check">
+                                <input type="checkbox" class="form-check-input" id="boldText" checked>
+                                <label class="form-check-label" for="boldText">粗体文字</label>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">数据格式</label>
+                                <select class="form-select" id="dataFormat">
+                                    <option value="General">通用</option>
+                                    <option value="Number">数字</option>
+                                    <option value="Currency">货币</option>
+                                    <option value="Percentage">百分比</option>
+                                    <option value="Date">日期</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                            <button type="button" class="btn btn-primary" onclick="saveCellConfig(${row}, ${col}, '${chartId}')">保存配置</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Add modal to body
+        const modalContainer = document.createElement('div');
+        modalContainer.innerHTML = modalHtml;
+        document.body.appendChild(modalContainer);
+        
+        // Show modal
+        const modal = new bootstrap.Modal(document.getElementById('cellConfigModal'));
+        modal.show();
+        
+        // Remove modal from DOM when hidden
+        document.getElementById('cellConfigModal').addEventListener('hidden.bs.modal', function() {
+            modalContainer.remove();
+        });
+    }
+    
+    // Function to save cell configuration
+    function saveCellConfig(row, col, chartId) {
+        const indicatorName = document.getElementById('indicatorName').value;
+        const bgColor = document.getElementById('bgColor').value;
+        const textColor = document.getElementById('textColor').value;
+        const boldText = document.getElementById('boldText').checked;
+        const dataFormat = document.getElementById('dataFormat').value;
+        
+        // Update cell in Luckysheet
+        luckysheet.setCellValue(row, col, indicatorName);
+        luckysheet.setCellAttribute(row, col, {
+            bg: bgColor,
+            cl: textColor,
+            bl: boldText ? 1 : 0,
+            ct: { fa: dataFormat, t: "g" }
+        });
+        luckysheet.refresh();
+        
+        // Save configuration to chart config
+        if (chartId && chartsConfig[chartId]) {
+            if (!chartsConfig[chartId].cell_indicators) {
+                chartsConfig[chartId].cell_indicators = {};
+            }
+            const cellKey = `${row},${col}`;
+            chartsConfig[chartId].cell_indicators[cellKey] = {
+                indicator: indicatorName,
+                row: row,
+                col: col,
+                style: {
+                    bg: bgColor,
+                    cl: textColor,
+                    bl: boldText ? 1 : 0,
+                    ct: { fa: dataFormat, t: "g" }
+                }
+            };
+        }
+        
+        // Close modal
+        const modal = bootstrap.Modal.getInstance(document.getElementById('cellConfigModal'));
+        modal.hide();
+        
+        alert('单元格配置已保存');
+    }
+
+    // Enhanced drag and drop functionality for dataset indicators
+    function initDatasetIndicatorDragAndDrop() {
+        // Add event listeners to all dataset columns
+        document.addEventListener('dragover', function(e) {
+            const container = e.target.closest('.luckysheet-container');
+            if (container) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+                container.style.border = '2px dashed #0d6efd';
+            }
+        });
+        
+        document.addEventListener('dragleave', function(e) {
+            const container = e.target.closest('.luckysheet-container');
+            if (container) {
+                container.style.border = 'none';
+            }
+        });
+        
+        document.addEventListener('drop', function(e) {
+            const container = e.target.closest('.luckysheet-container');
+            if (container) {
+                e.preventDefault();
+                container.style.border = 'none';
+                
+                const column = e.dataTransfer.getData("text/plain");
+                console.log("Dropped column:", column); // Debug
+                
+                if (column && typeof luckysheet !== 'undefined' && luckysheet.getRange) {
+                    const range = luckysheet.getRange(); 
+                    // Check if range is valid and has at least one selection
+                    if (range && range.length > 0 && range[0].row) {
+                        const r = range[0].row[0];
+                        const c = range[0].column[0];
+                        
+                        // Insert as text with special formatting
+                        luckysheet.setCellValue(r, c, column);
+                        luckysheet.setCellAttribute(r, c, {
+                            bg: '#e7f1ff',
+                            cl: '#0d6efd',
+                            bl: 1
+                        });
+                        luckysheet.refresh();
+                        
+                        // Save cell indicator configuration
+                        if (currentChartId && chartsConfig[currentChartId]) {
+                            if (!chartsConfig[currentChartId].cell_indicators) {
+                                chartsConfig[currentChartId].cell_indicators = {};
+                            }
+                            const cellKey = `${r},${c}`;
+                            chartsConfig[currentChartId].cell_indicators[cellKey] = {
+                                indicator: column,
+                                row: r,
+                                col: c,
+                                style: {
+                                    bg: '#e7f1ff',
+                                    cl: '#0d6efd',
+                                    bl: 1
+                                }
+                            };
+                        }
+                        
+                        // Show success message and option to configure
+                        setTimeout(() => {
+                            if (confirm(`已成功将指标 "${column}" 拖入单元格。\n\n是否现在配置该单元格的指标和样式？`)) {
+                                configureCellIndicator(r, c, column, currentChartId);
+                            }
+                        }, 100);
+                    } else {
+                        // If no cell selected, maybe try to find the last empty cell? 
+                        // For now, give a clearer alert.
+                        alert('请先在表格中点击选中一个单元格，然后拖入数据列名。');
+                    }
+                } else {
+                    console.error("Luckysheet object not found or invalid");
+                }
+            }
+        });
+    }
+
+    // Initialize drag and drop functionality when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        initDatasetIndicatorDragAndDrop();
+    });
+</script>
 <script src="{% static 'dashboard/js/echarts.min.js' %}"></script>
-<script src="https://cdn.jsdelivr.net/npm/jquery@3.6.0/dist/jquery.min.js"></script>
+<script src="{% static 'dashboard/js/jquery.min.js' %}"></script>
 <script src="{% static 'dashboard/lib/luckysheet/plugins/js/plugin.js' %}?v=3"></script>
 <script src="{% static 'dashboard/lib/luckysheet/luckysheet.umd.js' %}?v=3"></script>
 <link href="{% static 'dashboard/lib/luckysheet/plugins/css/pluginsCss.css' %}?v=3" rel="stylesheet">
@@ -56,6 +378,71 @@
     .component-btn span {
         font-size: 12px;
     }
+    /* Parameter Panel Designer Styles */
+    #param-design-area {
+        min-height: 60px;
+        background-color: #f8f9fa;
+        border: 1px dashed #ccc;
+        border-radius: 4px;
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        padding: 5px;
+        margin-bottom: 10px;
+        position: relative;
+    }
+    #param-design-area:empty::before {
+        content: "拖拽或点击参数组件添加到此处";
+        color: #aaa;
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+    }
+    .param-widget-item {
+        margin: 5px;
+        padding: 5px 10px;
+        background: #fff;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        position: relative;
+    }
+    .param-widget-item:hover {
+        border-color: #0d6efd;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+    .param-widget-item.selected {
+        border-color: #0d6efd;
+        background-color: #e7f1ff;
+        outline: 2px solid #0d6efd;
+    }
+    .param-widget-label {
+        margin-right: 8px;
+        font-weight: bold;
+        font-size: 13px;
+    }
+    .param-widget-preview {
+        color: #666;
+        font-style: italic;
+        font-size: 12px;
+        pointer-events: none; /* Prevent interaction with inner input */
+    }
+    .param-delete-btn {
+        margin-left: 10px;
+        color: #dc3545;
+        cursor: pointer;
+        opacity: 0;
+        transition: opacity 0.2s;
+    }
+    .param-widget-item:hover .param-delete-btn {
+        opacity: 1;
+    }
+
     /* Excel-like Table Style */
     .excel-table {
         border-collapse: collapse;
@@ -102,11 +489,25 @@
     }
     
     /* Ensure GridStack resize handles are visible over Luckysheet/Canvas */
-    .grid-stack-item .ui-resizable-handle {
-        z-index: 9999 !important;
+    .grid-stack-item .ui-resizable-handle, .ui-resizable-se, .ui-resizable-sw, .ui-resizable-ne, .ui-resizable-nw {
+        z-index: 999999 !important;
+        pointer-events: auto !important;
+        background-color: rgba(0,0,0,0.01); /* Hit area */
     }
     .grid-stack-item.ui-resizable-resizing .ui-resizable-handle {
-        z-index: 10000 !important;
+        z-index: 999999 !important;
+    }
+    
+    /* Disable pointer events for Luckysheet during resize */
+    .grid-stack-item.ui-resizable-resizing .luckysheet-container {
+        pointer-events: none !important;
+        user-select: none !important;
+    }
+    
+    /* Disable Luckysheet canvas pointer events during resize */
+    .grid-stack-item.ui-resizable-resizing .luckysheet-canvas, .grid-stack-item.ui-resizable-resizing .luckysheet-cell-input {
+        pointer-events: none !important;
+        user-select: none !important;
     }
 </style>
 <link href="{% static 'dashboard/lib/luckysheet/plugins/css/pluginsCss.css' %}" rel="stylesheet">
@@ -127,6 +528,11 @@
         <button class="btn btn-outline-success me-2" onclick="togglePublish()" id="btn-publish">
             <i class="bi bi-cloud-upload"></i> {% if report.status == 'published' %}取消发布{% else %}发布{% endif %}
         </button>
+        <!-- Deprecated Modal Button 
+        <button class="btn btn-outline-secondary me-2" onclick="openParamsModal()">
+            <i class="bi bi-sliders"></i> 参数配置
+        </button>
+        -->
         <button class="btn btn-outline-primary me-2" onclick="saveReport()">
             <i class="bi bi-save"></i> 保存
         </button>
@@ -141,10 +547,13 @@
     <div class="col-md-2 border-end overflow-hidden d-flex flex-column" style="max-height: 100%;">
         <ul class="nav nav-tabs nav-fill mb-2" id="leftTabs" role="tablist">
             <li class="nav-item" role="presentation">
-                <button class="nav-link active py-2" id="components-tab" data-bs-toggle="tab" data-bs-target="#components" type="button" role="tab">组件</button>
+                <button class="nav-link active py-2" id="components-tab" data-bs-toggle="tab" data-bs-target="#components" type="button" role="tab">图表</button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link py-2" id="datasets-tab" data-bs-toggle="tab" data-bs-target="#datasets" type="button" role="tab">数据集</button>
+                <button class="nav-link py-2" id="params-comp-tab" data-bs-toggle="tab" data-bs-target="#params-comp" type="button" role="tab">参数</button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link py-2" id="datasets-tab" data-bs-toggle="tab" data-bs-target="#datasets" type="button" role="tab">数据</button>
             </li>
         </ul>
         
@@ -152,10 +561,89 @@
             <!-- Components Tab -->
             <div class="tab-pane fade show active" id="components" role="tabpanel">
                 <div id="component-toolbox" class="d-flex flex-wrap justify-content-center p-2">
-                    <div class="text-center text-muted small py-3">加载中...</div>
+                    <!-- Loaded via JS or hardcoded -->
+                    <div class="row g-2 w-100">
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addChartByType('bar')">
+                                <i class="bi bi-bar-chart-line-fill text-primary"></i>
+                                <span>柱状图</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addChartByType('line')">
+                                <i class="bi bi-graph-up text-primary"></i>
+                                <span>折线图</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addChartByType('pie')">
+                                <i class="bi bi-pie-chart-fill text-primary"></i>
+                                <span>饼图</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addChartByType('scatter')">
+                                <i class="bi bi-flower3 text-primary"></i>
+                                <span>散点图</span>
+                            </div>
+                        </div>
+                        
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addChartByType('table')">
+                                <i class="bi bi-table text-success"></i>
+                                <span>数据表格</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addChartByType('Table')">
+                                <i class="bi bi-grid-3x3 text-success"></i>
+                                <span>Luckysheet</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
-                <div class="alert alert-info small mx-2 mt-2">
-                    <i class="bi bi-info-circle"></i> 点击组件添加到画布
+            </div>
+
+            <!-- Param Components Tab -->
+            <div class="tab-pane fade" id="params-comp" role="tabpanel">
+                <div class="p-2">
+                    <h6 class="text-muted small fw-bold mb-3">输入控件</h6>
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addParamWidget('text')">
+                                <i class="bi bi-input-cursor-text text-secondary"></i>
+                                <span>文本框</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addParamWidget('number')">
+                                <i class="bi bi-123 text-secondary"></i>
+                                <span>数字框</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addParamWidget('date')">
+                                <i class="bi bi-calendar-date text-secondary"></i>
+                                <span>日期选择</span>
+                            </div>
+                        </div>
+                        <div class="col-6">
+                            <div class="component-btn" onclick="addParamWidget('select')">
+                                <i class="bi bi-menu-button-wide text-secondary"></i>
+                                <span>下拉框</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h6 class="text-muted small fw-bold mt-3 mb-3">操作控件</h6>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <div class="component-btn" onclick="addParamWidget('button')">
+                                <i class="bi bi-search text-primary"></i>
+                                <span>查询按钮</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
             
@@ -204,9 +692,15 @@
     </div>
 
     <!-- Center: Canvas -->
-    <div class="col-md-7 bg-light p-3 overflow-auto" style="max-height: 100%;">
-        <div class="grid-stack shadow-sm bg-white" style="min-height: 600px;"></div>
-    </div>
+            <div class="col-md-7 bg-light p-3 overflow-auto" style="max-height: 100%;">
+                <!-- Parameter Panel Designer -->
+                <div id="param-design-area" class="mb-3 p-2 bg-white border border-dashed text-center text-muted" style="min-height: 80px; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-start; gap: 10px;">
+                    <span class="w-100 user-select-none">拖拽或点击左侧参数组件至此区域 (参数面板)</span>
+                </div>
+                
+                <!-- Chart Grid -->
+                <div class="grid-stack shadow-sm bg-white" style="min-height: 600px;"></div>
+            </div>
 
     <!-- Right: Properties -->
     <div class="col-md-3 border-start overflow-hidden d-flex flex-column" style="max-height: 100%; padding: 0;">
@@ -285,7 +779,18 @@
                             <!-- Y Axis Name moved to Style Tab -->
                         </div>
                         
-                        <!-- Filters Removed -->
+                        <!-- Filters -->
+                        <div class="mb-3">
+                            <label class="form-label small text-secondary d-flex justify-content-between align-items-center">
+                                <span>数据筛选 (Filters)</span>
+                                <button class="btn btn-xs btn-outline-primary py-0" style="font-size: 12px;" onclick="addFilterItem()">
+                                    <i class="bi bi-plus"></i> 添加
+                                </button>
+                            </label>
+                            <div id="filterContainer" class="border rounded p-2 bg-white" style="min-height: 50px;">
+                                <div class="text-muted small text-center py-2" id="filterEmptyMsg">无筛选条件</div>
+                            </div>
+                        </div>
                         
                     </div>
                     
@@ -311,6 +816,98 @@
             <div class="p-3 border-top bg-light mt-auto">
                  <button class="btn btn-outline-danger btn-sm w-100" onclick="removeCurrentWidget()">
                     <i class="bi bi-trash"></i> 删除图表
+                </button>
+            </div>
+        </div>
+        
+        <!-- Parameter Properties Panel -->
+        <div id="param-props-panel" style="display: none; height: 100%; flex-direction: column;">
+            <div class="p-3 bg-light border-bottom">
+                <h6 class="mb-0">参数配置</h6>
+            </div>
+            <div class="p-3 overflow-y-auto flex-grow-1" style="max-height: calc(100vh - 250px);">
+                <div class="mb-3">
+                    <label class="form-label small text-secondary">参数ID (Key)</label>
+                    <input type="text" class="form-control form-control-sm" id="paramKey" onchange="updateParamProperty('key', this.value)">
+                    <div class="form-text small">SQL中使用 <code>{% verbatim %}{{ param:key }}{% endverbatim %}</code> 引用</div>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-secondary">显示名称 (Label)</label>
+                    <input type="text" class="form-control form-control-sm" id="paramLabel" onchange="updateParamProperty('label', this.value)">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-secondary">控件类型</label>
+                    <select class="form-select form-select-sm" id="paramType" onchange="updateParamProperty('type', this.value)">
+                        <option value="text">文本框 (Text)</option>
+                        <option value="number">数字框 (Number)</option>
+                        <option value="date">日期选择 (Date)</option>
+                        <option value="select">下拉单选 (Select)</option>
+                        <option value="multiselect">下拉多选 (Multi-Select)</option>
+                        <option value="button">查询按钮 (Button)</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small text-secondary">默认值</label>
+                    <input type="text" class="form-control form-control-sm" id="paramDefault" onchange="updateParamProperty('default', this.value)">
+                </div>
+                <div class="mb-3 form-check">
+                    <input type="checkbox" class="form-check-input" id="paramSqlQuote" onchange="updateParamProperty('sql_quote', this.checked)">
+                    <label class="form-check-label small text-secondary" for="paramSqlQuote">SQL转义 (自动添加引号)</label>
+                    <div class="form-text small" style="font-size: 10px;">多选时自动将 <code>a,b</code> 转换为 <code>'a','b'</code></div>
+                </div>
+                <div class="mb-3" id="paramSourceDiv" style="display:none;">
+                    <label class="form-label small text-secondary">选项来源</label>
+                    <div class="btn-group w-100" role="group">
+                        <input type="radio" class="btn-check" name="paramSource" id="sourceStatic" value="static" autocomplete="off" onchange="updateParamProperty('source_type', 'static')">
+                        <label class="btn btn-outline-secondary btn-sm" for="sourceStatic">静态文本</label>
+
+                        <input type="radio" class="btn-check" name="paramSource" id="sourceDataset" value="dataset" autocomplete="off" onchange="updateParamProperty('source_type', 'dataset')">
+                        <label class="btn btn-outline-secondary btn-sm" for="sourceDataset">数据集</label>
+                    </div>
+                </div>
+
+                <div class="mb-3" id="paramOptionsDiv" style="display:none;">
+                    <label class="form-label small text-secondary">选项 (逗号分隔)</label>
+                    <textarea class="form-control form-control-sm" id="paramOptions" rows="3" onchange="updateParamProperty('options', this.value)" placeholder="选项1,选项2..."></textarea>
+                </div>
+
+                <div id="paramDynamicDiv" style="display:none;">
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">数据集</label>
+                        <select class="form-select form-select-sm" id="paramDatasetSelect" onchange="updateParamDatasetColumns(this.value, true)">
+                            <option value="">请选择数据集...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">显示字段 (Label)</label>
+                        <select class="form-select form-select-sm" id="paramLabelKey" onchange="updateParamProperty('label_field', this.value)">
+                            <option value="">请选择列...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small text-secondary">值字段 (Value)</label>
+                        <select class="form-select form-select-sm" id="paramValueKey" onchange="updateParamProperty('value_field', this.value)">
+                            <option value="">请选择列...</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="mb-3">
+                     <label class="form-label small text-secondary">宽度 (px)</label>
+                     <input type="number" class="form-control form-control-sm" id="paramWidth" value="200" onchange="updateParamProperty('width', this.value)">
+                </div>
+                <div class="mb-3">
+                     <label class="form-label small text-secondary">样式 (CSS)</label>
+                     <input type="text" class="form-control form-control-sm" id="paramStyle" placeholder="color: red; font-weight: bold;" onchange="updateParamProperty('style', this.value)">
+                </div>
+                <div class="mb-3">
+                     <label class="form-label small text-secondary">格式 (Format)</label>
+                     <input type="text" class="form-control form-control-sm" id="paramFormat" placeholder="YYYY-MM-DD 或 0.00" onchange="updateParamProperty('format', this.value)">
+                     <div class="form-text small">仅对日期和数字有效</div>
+                </div>
+            </div>
+            <div class="p-3 border-top bg-light mt-auto">
+                 <button class="btn btn-outline-danger btn-sm w-100" onclick="deleteParamWidget()">
+                    <i class="bi bi-trash"></i> 删除参数
                 </button>
             </div>
         </div>
@@ -406,12 +1003,373 @@
     let grid = null;
     let currentWidget = null; // The DOM element
     let currentChartId = null; // The ID
+    let currentParamId = null; // Currently selected parameter
+
     // Initialize config from template variable or empty
-    let chartsConfig = JSON.parse('{{ report.template_config|escapejs }}') || {};
+    let initialConfig = JSON.parse('{{ report.template_config|escapejs }}') || {};
+    let chartsConfig = {};
+    let reportParams = [];
+
+    // Handle new config format { charts: [], params: [] } vs old format { chartId: config }
+    if (initialConfig.charts && Array.isArray(initialConfig.charts)) {
+        initialConfig.charts.forEach(c => {
+             chartsConfig[c.id] = c;
+        });
+        if (initialConfig.params) {
+            reportParams = initialConfig.params;
+        }
+    } else {
+        // Assume old format (just chart map)
+        chartsConfig = initialConfig;
+    }
+    
     let datasetColumns = {}; // Cache for dataset columns
     
     // Global Configs Loaded from API
     let GLOBAL_CHART_CONFIGS = null;
+
+    // --- Parameter Management ---
+    function addParamWidget(type) {
+        const id = 'param_' + Math.random().toString(36).substr(2, 9);
+        const newParam = {
+            id: id,
+            key: 'param' + (reportParams.length + 1),
+            label: '参数' + (reportParams.length + 1),
+            type: type,
+            default: '',
+            width: 200,
+            options: ''
+        };
+        reportParams.push(newParam);
+        renderParamWidget(newParam);
+        selectParamWidget(id);
+    }
+
+    function renderParamWidget(param) {
+        const container = document.getElementById('param-design-area');
+        // Remove default text if present
+        const defaultText = container.querySelector('span.user-select-none');
+        if (defaultText) defaultText.style.display = 'none';
+        
+        // Check if exists
+        let el = document.getElementById(param.id);
+        if (!el) {
+            el = document.createElement('div');
+            el.id = param.id;
+            el.className = 'param-widget-item';
+            el.style.border = '1px solid #ddd';
+            el.style.padding = '5px 10px';
+            el.style.borderRadius = '4px';
+            el.style.cursor = 'move'; // Changed cursor to move
+            el.style.backgroundColor = '#fff';
+            el.style.display = 'flex';
+            el.style.alignItems = 'center';
+            el.style.gap = '5px';
+            el.style.position = 'relative';
+            el.style.userSelect = 'none';
+            el.draggable = true; // Enable Drag
+            
+            // Drag Events
+            el.ondragstart = function(e) {
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', param.id);
+                window.draggedParamId = param.id;
+                el.classList.add('opacity-50');
+            };
+            
+            el.ondragend = function(e) {
+                el.classList.remove('opacity-50');
+                window.draggedParamId = null;
+                // Update order in reportParams based on DOM order
+                updateParamsOrder();
+            };
+            
+            el.ondragover = function(e) {
+                e.preventDefault(); // Allow drop
+                e.dataTransfer.dropEffect = 'move';
+                
+                const target = e.target.closest('.param-widget-item');
+                if (target && target !== el) {
+                    const rect = target.getBoundingClientRect();
+                    const next = (e.clientX - rect.left) > (rect.width / 2);
+                    if (next) {
+                        container.insertBefore(el, target.nextSibling);
+                    } else {
+                        container.insertBefore(el, target);
+                    }
+                }
+            };
+            
+            container.appendChild(el);
+            el.onclick = function(e) {
+                e.stopPropagation();
+                selectParamWidget(param.id);
+            };
+        }
+        
+        // Update Content
+        el.style.width = (param.width || 200) + 'px';
+        const customStyle = param.style || '';
+        
+        let inputHtml = '';
+        if (param.type === 'text') {
+            inputHtml = `<input type="text" class="form-control form-control-sm" placeholder="${param.default||''}" style="${customStyle}" disabled>`;
+        } else if (param.type === 'number') {
+            inputHtml = `<input type="number" class="form-control form-control-sm" placeholder="${param.default||''}" style="${customStyle}" disabled>`;
+        } else if (param.type === 'date') {
+            inputHtml = `<input type="date" class="form-control form-control-sm" style="${customStyle}" disabled>`;
+        } else if (param.type === 'select') {
+             inputHtml = `<select class="form-select form-select-sm" style="${customStyle}" disabled><option>${param.default||'选项'}</option></select>`;
+        } else if (param.type === 'multiselect') {
+             inputHtml = `<select class="form-select form-select-sm" multiple disabled style="height: 2.5em; overflow: hidden; ${customStyle}"><option>${param.default||'选项1'}</option><option>...</option></select>`;
+        } else if (param.type === 'button') {
+             inputHtml = `<button class="btn btn-primary btn-sm w-100" style="${customStyle}" onclick="executeQuery()">${param.label||'查询'}</button>`;
+        }
+        
+        if (param.type === 'button') {
+            el.innerHTML = `<div class="w-100">${inputHtml}</div>`;
+        } else {
+            el.innerHTML = `
+                <span class="small text-muted text-nowrap">${param.label}</span>
+                <div class="flex-grow-1">${inputHtml}</div>
+            `;
+        }
+        
+        if (currentParamId === param.id) {
+            el.style.borderColor = '#0d6efd';
+            el.style.boxShadow = '0 0 0 2px rgba(13,110,253,0.25)';
+        } else {
+            el.style.borderColor = '#ddd';
+            el.style.boxShadow = 'none';
+        }
+    }
+    
+    function updateParamsOrder() {
+        const container = document.getElementById('param-design-area');
+        const newOrder = [];
+        container.querySelectorAll('.param-widget-item').forEach(el => {
+            const param = reportParams.find(p => p.id === el.id);
+            if (param) newOrder.push(param);
+        });
+        reportParams = newOrder;
+    }
+
+    function executeQuery() {
+        // Update all charts when query button is clicked
+        Object.keys(chartsConfig).forEach(chartId => {
+            const config = chartsConfig[chartId];
+            if (config && config.dataset_id) {
+                refreshPreview(chartId);
+            }
+        });
+    }
+
+    function updateParamDatasetOptions() {
+        const select = document.getElementById('paramDatasetSelect');
+        const currentVal = select.value;
+        const sourceSelect = document.getElementById('propDataset');
+        if (sourceSelect) {
+            select.innerHTML = sourceSelect.innerHTML;
+            select.value = currentVal;
+        }
+    }
+
+    async function updateParamDatasetColumns(datasetId, isUserAction) {
+        if (isUserAction) {
+             updateParamProperty('dataset_id', datasetId);
+        }
+        
+        const labelSelect = document.getElementById('paramLabelKey');
+        const valueSelect = document.getElementById('paramValueKey');
+        
+        // Save current selections
+        const currentLabel = labelSelect.value;
+        const currentValue = valueSelect.value;
+        
+        labelSelect.innerHTML = '<option value="">加载中...</option>';
+        valueSelect.innerHTML = '<option value="">加载中...</option>';
+        
+        if (!datasetId) {
+            labelSelect.innerHTML = '<option value="">请选择数据集</option>';
+            valueSelect.innerHTML = '<option value="">请选择数据集</option>';
+            return;
+        }
+        
+        try {
+            // Check cache
+            if (!datasetColumns[datasetId]) {
+                const url = "{% url 'api_get_dataset_columns' 0 %}".replace('0', datasetId);
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.success) {
+                    datasetColumns[datasetId] = data.columns;
+                }
+            }
+            
+            const cols = datasetColumns[datasetId] || [];
+            
+            let optionsHtml = '<option value="">请选择列...</option>';
+            cols.forEach(c => {
+                optionsHtml += `<option value="${c}">${c}</option>`;
+            });
+            
+            labelSelect.innerHTML = optionsHtml;
+            valueSelect.innerHTML = optionsHtml;
+            
+            // Restore values or auto-select first column
+            if (currentLabel && cols.includes(currentLabel)) {
+                labelSelect.value = currentLabel;
+            } else if (cols.length > 0) {
+                // Auto-select first column as label
+                labelSelect.value = cols[0];
+                updateParamProperty('label_field', cols[0]);
+            }
+            
+            if (currentValue && cols.includes(currentValue)) {
+                valueSelect.value = currentValue;
+            } else if (cols.length > 0) {
+                // Auto-select first column as value
+                valueSelect.value = cols[0];
+                updateParamProperty('value_field', cols[0]);
+            }
+            
+        } catch (e) {
+            console.error("Failed to load param columns", e);
+            labelSelect.innerHTML = '<option value="">加载失败</option>';
+            valueSelect.innerHTML = '<option value="">加载失败</option>';
+        }
+    }
+
+    function selectParamWidget(id) {
+        currentParamId = id;
+        
+        // Update UI highlights
+        reportParams.forEach(p => renderParamWidget(p));
+        
+        // Show/Hide Panels
+        document.getElementById('props-panel').style.display = 'none';
+        document.getElementById('empty-props').style.display = 'none';
+        document.getElementById('param-props-panel').style.display = 'flex';
+        
+        // Populate Form
+        const param = reportParams.find(p => p.id === id);
+        if (param) {
+            document.getElementById('paramKey').value = param.key || '';
+            document.getElementById('paramLabel').value = param.label || '';
+            document.getElementById('paramType').value = param.type || 'text';
+            document.getElementById('paramDefault').value = param.default || '';
+            document.getElementById('paramWidth').value = param.width || 200;
+            document.getElementById('paramOptions').value = param.options || '';
+            const quoteCb = document.getElementById('paramSqlQuote');
+            if(quoteCb) quoteCb.checked = param.sql_quote === true;
+            
+            // Dynamic Fields
+            const sourceType = param.source_type || 'static';
+            document.getElementById('sourceStatic').checked = (sourceType === 'static');
+            document.getElementById('sourceDataset').checked = (sourceType === 'dataset');
+            
+            updateParamDatasetOptions();
+            document.getElementById('paramDatasetSelect').value = param.dataset_id || '';
+            
+            // Trigger load columns but set values after
+            if (param.dataset_id) {
+                // Set values to DOM elements so updateParamDatasetColumns can restore them
+                if(param.label_field) {
+                     const labelSel = document.getElementById('paramLabelKey');
+                     labelSel.innerHTML = `<option value="${param.label_field}">${param.label_field}</option>`;
+                     labelSel.value = param.label_field;
+                }
+                if(param.value_field) {
+                     const valSel = document.getElementById('paramValueKey');
+                     valSel.innerHTML = `<option value="${param.value_field}">${param.value_field}</option>`;
+                     valSel.value = param.value_field;
+                }
+                updateParamDatasetColumns(param.dataset_id, false);
+            } else {
+                document.getElementById('paramLabelKey').innerHTML = '<option value="">请选择数据集</option>';
+                document.getElementById('paramValueKey').innerHTML = '<option value="">请选择数据集</option>';
+            }
+            
+            // Visibility Logic
+            const isSelect = (param.type === 'select' || param.type === 'multiselect');
+            document.getElementById('paramSourceDiv').style.display = isSelect ? 'block' : 'none';
+            
+            if (isSelect) {
+                document.getElementById('paramOptionsDiv').style.display = (sourceType === 'static') ? 'block' : 'none';
+                document.getElementById('paramDynamicDiv').style.display = (sourceType === 'dataset') ? 'block' : 'none';
+            } else {
+                document.getElementById('paramOptionsDiv').style.display = 'none';
+                document.getElementById('paramDynamicDiv').style.display = 'none';
+            }
+        }
+        
+        // Deselect Charts
+        if (grid) {
+             const active = document.querySelector('.grid-stack-item.border-primary');
+             if(active) active.classList.remove('border-primary', 'border-2');
+        }
+        currentWidget = null;
+        currentChartId = null;
+    }
+
+    function updateParamProperty(key, value) {
+        if (!currentParamId) return;
+        const param = reportParams.find(p => p.id === currentParamId);
+        if (param) {
+            param[key] = value;
+            if (key === 'width') param[key] = parseInt(value);
+            renderParamWidget(param);
+            
+            if (key === 'type' || key === 'source_type') {
+                selectParamWidget(currentParamId);
+            }
+            
+            // Update all charts when params change
+            // Add debounce to avoid multiple rapid calls
+            if (window.paramUpdateTimeout) {
+                clearTimeout(window.paramUpdateTimeout);
+            }
+            window.paramUpdateTimeout = setTimeout(() => {
+                Object.keys(chartsConfig).forEach(chartId => {
+                    const config = chartsConfig[chartId];
+                    if (config && config.dataset_id) {
+                        refreshPreview(chartId);
+                    }
+                });
+            }, 500); // 500ms debounce
+        }
+    }
+    
+    function deleteParamWidget() {
+        if (!currentParamId) return;
+        if(!confirm('确定要删除这个参数吗？')) return;
+        
+        // Remove from DOM
+        const el = document.getElementById(currentParamId);
+        if(el) el.remove();
+        
+        // Remove from Array
+        reportParams = reportParams.filter(p => p.id !== currentParamId);
+        currentParamId = null;
+        
+        // Reset View
+        document.getElementById('param-props-panel').style.display = 'none';
+        document.getElementById('empty-props').style.display = 'block';
+        
+        // Show default text if empty
+        if (reportParams.length === 0) {
+             const container = document.getElementById('param-design-area');
+             const defaultText = container.querySelector('span.user-select-none');
+             if (defaultText) defaultText.style.display = 'block';
+        }
+    }
+    
+    // Load params on startup
+    window.addEventListener('load', function() {
+        if (reportParams.length > 0) {
+            reportParams.forEach(p => renderParamWidget(p));
+        }
+    });
 
     // --- Unified Formatter ---
     window.biFormatter = {
@@ -507,11 +1465,34 @@
             cellHeight: 80,
             margin: 5,
             acceptWidgets: true,
-            float: true
+            float: false, // Disable float to prevent table from moving with mouse
+            disableDrag: false, // Keep drag enabled for manual repositioning
+            disableResize: false, // Keep resize enabled
+            alwaysShowResizeHandle: true,
+            resizable: {
+                handles: 'se' // Only show resize handle at bottom-right
+            },
+            draggable: {
+                handle: '.card-header', // Only allow dragging by header
+                scroll: true
+            }
+        });
+
+        // Add Resize Start Handler
+        grid.on('resizestart', function(event, el) {
+            // When resize starts, disable pointer events for Luckysheet to prevent interference
+            const container = el.querySelector('.luckysheet-container');
+            if (container) {
+                // Add CSS class to disable pointer events
+                el.classList.add('ui-resizable-resizing');
+            }
         });
 
         // Add Resize Handler
         grid.on('resizestop', function(event, el) {
+            // First, remove the resizing class to restore pointer events
+            el.classList.remove('ui-resizable-resizing');
+            
             const chartId = el.querySelector('.card').id;
             
             // 1. Resize ECharts if exists
@@ -528,7 +1509,29 @@
                  // Check if the resized widget actually contains a luckysheet container
                  const container = el.querySelector('.luckysheet-container');
                  if (container) {
+                     // Force resize to ensure Luckysheet adjusts to new container size
                      luckysheet.resize();
+                     
+                     // Update the luckysheet options to show more rows/columns if needed
+                     // based on the new container size
+                     if (luckysheet.getSheetCount() > 0) {
+                         const sheet = luckysheet.getSheet();
+                         const containerRect = container.getBoundingClientRect();
+                         
+                         // Calculate approximate number of rows and columns that fit
+                         // Based on average cell size in Luckysheet
+                         const estimatedCols = Math.ceil(containerRect.width / 100); // ~100px per column
+                         const estimatedRows = Math.ceil(containerRect.height / 25); // ~25px per row
+                         
+                         // Update the sheet configuration
+                         luckysheet.setOptions({
+                             row: Math.max(sheet.config.row, estimatedRows),
+                             column: Math.max(sheet.config.column, estimatedCols)
+                         });
+                         
+                         // Force refresh to show new cells
+                         luckysheet.refresh();
+                     }
                  }
             }
         });
@@ -537,8 +1540,11 @@
             items.forEach(item => {
                 // Handle Drag-and-Drop items
                 const el = item.el;
-                let id = el.id;
+                // Check item.id (from options) or el.id (from DOM) or attribute
+                let id = item.id || el.id || el.getAttribute('gs-id');
                 
+                console.log('Grid added event:', { itemId: item.id, elId: el.id, resolvedId: id });
+
                 // If added via Drag-and-Drop, it won't be in chartsConfig yet
                 if (!id || !chartsConfig[id]) {
                     const newId = 'chart_' + Date.now();
@@ -922,11 +1928,13 @@
     }
 
     function addWidgetToGrid(id, config) {
+        console.log('addWidgetToGrid:', id, config);
         const el = grid.addWidget({
             w: config.w || 6, 
             h: config.h || 4,
             x: config.x,
             y: config.y,
+            id: id, // Pass ID so it's available in 'added' event
             content: `
                 <div class="card h-100 shadow-sm" id="${id}">
                     <div class="card-header bg-white fw-bold small text-truncate" data-role="header" 
@@ -939,7 +1947,7 @@
                     </div>
                     <div class="card-body p-2 position-relative" style="overflow: hidden;">
                         <div class="chart-placeholder small">
-                        ${(config.dataset_id || config.type === 'Table' || config.type === 'table') ? (config.dataset_id ? '请配置数据' : '表格组件') : '请先绑定数据集'}
+                        ${(config.dataset_id || config.type === 'Table' || config.type === 'table') ? (config.dataset_id ? '请配置数据' : '表格组件') : '请先绑定数据集 (Debug: ' + (config.dataset_id === undefined ? 'undef' : (config.dataset_id === null ? 'null' : config.dataset_id)) + ')'}
                     </div>
                         <div id="canvas-${id}" class="w-100 h-100 position-absolute top-0 start-0 p-2" style="display:none;"></div>
                     </div>
@@ -955,11 +1963,16 @@
         selectWidget(el);
         
         // Try to render if config is ready
-        if (config.dataset_id) {
-            refreshPreview(id);
-        } else if (config.type === 'table' || config.type === 'Table') {
-            initEmptyLuckysheet(id);
-        }
+        // Use setTimeout to ensure DOM is fully ready after GridStack insertion
+        setTimeout(() => {
+            const currentConfig = chartsConfig[id] || config;
+            if (currentConfig.dataset_id) {
+                console.log('Triggering refreshPreview for', id);
+                refreshPreview(id);
+            } else if (currentConfig.type === 'table' || currentConfig.type === 'Table') {
+                initEmptyLuckysheet(id);
+            }
+        }, 300);
     }
 
     function selectWidget(el) {
@@ -1041,8 +2054,11 @@
             }
 
             if (config.dataset_id) {
-                loadDatasetColumns(config.dataset_id, config);
+                loadDatasetColumns(config.dataset_id, config).then(() => {
+                    renderFilters(config.filters || []);
+                });
             } else {
+                renderFilters([]);
                 // For Table without dataset, clear columns list
                 const valContainer = document.getElementById('propValueContainer');
                 if (valContainer) {
@@ -1134,7 +2150,11 @@
         if (key === 'dataset_id') {
             // Dataset changed
             if (value) {
-                document.getElementById('axis-config').style.display = 'block';
+                // Only show axis config if NOT table
+                const isTable = config.type === 'Table' || config.type === 'table';
+                if (!isTable) {
+                    document.getElementById('axis-config').style.display = 'block';
+                }
                 document.getElementById('dataset-warning').style.display = 'none';
                 
                 // Preserve existing selections if possible
@@ -1147,45 +2167,59 @@
                 // Try to restore selections
                 const newCols = datasetColumns[value] || [];
                 
-                if (oldCategory && newCols.includes(oldCategory)) {
-                     config.category_col = oldCategory;
-                     document.getElementById('propCategory').value = oldCategory;
+                // Safety check: Only validate/clear columns if we successfully loaded columns
+                if (newCols.length > 0) {
+                    if (oldCategory && newCols.includes(oldCategory)) {
+                         config.category_col = oldCategory;
+                         document.getElementById('propCategory').value = oldCategory;
+                    } else {
+                         // Only clear if we have columns but the old one is not among them
+                         if (oldCategory) {
+                             console.warn(`Column ${oldCategory} not found in dataset ${value}, clearing.`);
+                             config.category_col = '';
+                             document.getElementById('propCategory').value = '';
+                         }
+                    }
+                    
+                    if (oldSeries && newCols.includes(oldSeries)) {
+                         config.series_col = oldSeries;
+                         document.getElementById('propSeries').value = oldSeries;
+                    } else {
+                         if (oldSeries) {
+                             config.series_col = '';
+                             document.getElementById('propSeries').value = '';
+                         }
+                    }
+                    
+                    const oldValues = oldValue ? oldValue.split(',') : [];
+                    const validValues = oldValues.filter(v => newCols.includes(v));
+                    
+                    if (validValues.length > 0) {
+                         config.value_col = validValues.join(',');
+                         // Check the boxes
+                         validValues.forEach(v => {
+                              const safeCol = v.replace(/"/g, '&quot;');
+                              const cb = document.querySelector(`#propValueContainer input[value="${safeCol}"]`);
+                              if (cb) cb.checked = true;
+                         });
+                    } else {
+                         if (oldValue) {
+                             config.value_col = '';
+                         }
+                    }
                 } else {
-                     config.category_col = '';
-                     document.getElementById('propCategory').value = '';
-                }
-                
-                if (oldSeries && newCols.includes(oldSeries)) {
-                     config.series_col = oldSeries;
-                     document.getElementById('propSeries').value = oldSeries;
-                } else {
-                     config.series_col = '';
-                     document.getElementById('propSeries').value = '';
-                }
-                
-                // For value_col (which might be multiple), we need to check carefully
-                // But since value_col is a single string in config (e.g. 'sales' or 'sales,profit')
-                // We should parse it if it's comma separated? Currently logic seems to be simpler.
-                // Wait, updateValueCol() updates config.value_col based on checked boxes.
-                // We should check boxes if they exist in new columns.
-                
-                const oldValues = oldValue ? oldValue.split(',') : [];
-                const validValues = oldValues.filter(v => newCols.includes(v));
-                
-                if (validValues.length > 0) {
-                     config.value_col = validValues.join(',');
-                     // Check the boxes
-                     validValues.forEach(v => {
-                          const safeCol = v.replace(/"/g, '&quot;');
-                          const cb = document.querySelector(`#propValueContainer input[value="${safeCol}"]`);
-                          if (cb) cb.checked = true;
-                     });
-                } else {
-                     config.value_col = '';
+                    // Columns failed to load or are empty. Preserve config to avoid data loss.
+                    console.warn(`Columns for dataset ${value} are empty or failed to load. Preserving existing config.`);
+                    // We might want to set the UI values if they exist in config, 
+                    // even if we can't verify them against the dropdown list (which is empty).
+                    // But since dropdowns are generated from newCols, they are empty anyway.
+                    // We can't select options that don't exist in the select element.
+                    // However, we avoid clearing the `config` object.
                 }
                 
                 // Reset other things that are strictly dataset dependent
                 config.filters = []; // Filters are complex to map, better reset
+                renderFilters(config.filters);
                 // config.aggregate = 'none'; // Keep aggregate as it is likely reusable
                 // config.series_names = {}; // Keep?
                 // config.series_formats = {}; // Keep?
@@ -1300,7 +2334,7 @@
         valContainer.innerHTML = '';
         yDropdownText.innerText = '选择指标...';
         
-        if (!datasetColumns[datasetId]) {
+        if (!datasetColumns[datasetId] || datasetColumns[datasetId].length === 0) {
             try {
                 // Use Django's URL tag with a placeholder, then replace it with the actual ID
                 const url = "{% url 'api_get_dataset_columns' 0 %}".replace('0', datasetId);
@@ -1308,9 +2342,12 @@
                 const data = await res.json();
                 if (data.success) {
                     datasetColumns[datasetId] = data.columns;
+                } else {
+                    console.error("Failed to load columns:", data.message);
+                    // Ensure we don't cache invalid state if possible, but here we just don't set it
                 }
             } catch(e) {
-                console.error(e);
+                console.error("Error fetching columns:", e);
             }
         }
         
@@ -1697,12 +2734,25 @@
 
     // Filter logic removed
 
-    async function refreshPreview(id) {
+    async function refreshPreview(id, retryCount = 0) {
+        console.log('refreshPreview: called for', id, 'retry:', retryCount);
         const config = chartsConfig[id];
-        if (!config) return;
+        if (!config) {
+            console.error('refreshPreview: config not found for', id);
+            return;
+        }
+        console.log('refreshPreview: config', config);
         
         const canvas = document.getElementById(`canvas-${id}`);
-        if (!canvas) return;
+        if (!canvas) {
+            if (retryCount < 5) {
+                console.warn(`refreshPreview: canvas not found for ${id}, retrying (${retryCount + 1}/5)...`);
+                setTimeout(() => refreshPreview(id, retryCount + 1), 500);
+                return;
+            }
+            console.error('refreshPreview: canvas not found for', id);
+            return;
+        }
 
         // Show canvas and hide placeholder to ensure ECharts can calculate dimensions
         canvas.style.display = 'block';
@@ -1717,6 +2767,34 @@
         
         myChart.showLoading();
         
+        // Collect params from reportParams (use current values if available, fallback to default)
+        const params = {};
+        if (typeof reportParams !== 'undefined') {
+            reportParams.forEach(p => {
+                if(p.key) {
+                    // Try to get current value from UI if available
+                    let currentValue = p.default || '';
+                    // Get value from UI input if possible
+                    const paramElement = document.getElementById(p.id);
+                    if (paramElement) {
+                        const inputElement = paramElement.querySelector('input, select');
+                        if (inputElement) {
+                            if (inputElement.type === 'checkbox') {
+                                currentValue = inputElement.checked;
+                            } else if (inputElement.multiple) {
+                                const selectedOptions = Array.from(inputElement.selectedOptions);
+                                currentValue = selectedOptions.map(option => option.value);
+                            } else {
+                                currentValue = inputElement.value;
+                            }
+                        }
+                    }
+                    params[p.key] = currentValue;
+                }
+            });
+        }
+        console.log('Collected params:', params);
+        
         // Timeout handling (15 seconds)
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 15000);
@@ -1728,7 +2806,7 @@
                     'Content-Type': 'application/json',
                     'X-CSRFToken': '{{ csrf_token }}'
                 },
-                body: JSON.stringify(config),
+                body: JSON.stringify({ ...config, params: params }),
                 signal: controller.signal
             });
             clearTimeout(timeoutId);
@@ -1823,6 +2901,48 @@
             return;
         }
 
+        // Add Drag & Drop Listeners to Container for Data Columns
+        const container = document.getElementById(containerId);
+        if (container) {
+            container.ondragover = function(e) {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'copy';
+            };
+            
+            container.ondrop = function(e) {
+                e.preventDefault();
+                const col = e.dataTransfer.getData("text/plain");
+                if (col && typeof luckysheet !== 'undefined') {
+                    // Try to insert into selected cell
+                    // luckysheet.getRange() returns array of selection ranges [{row:[start, end], column:[start, end]}]
+                    const range = luckysheet.getRange();
+                    if (range && range.length > 0) {
+                         const r = range[0].row[0];
+                         const c = range[0].column[0];
+                         
+                         // Update cell value with column name
+                         // We might want to use specific syntax like {{ col }} if it's a template, but for now just the name
+                         luckysheet.setCellValue(r, c, col);
+                         
+                         // Force config update
+                         if (chartId && chartsConfig[chartId]) {
+                             try {
+                                 const all = luckysheet.getAllSheets();
+                                 if (all && all.length > 0) {
+                                     chartsConfig[chartId].luckysheet_data = all[0].config;
+                                     if (!chartsConfig[chartId].dataset_id) {
+                                         chartsConfig[chartId].luckysheet_celldata = all[0].celldata;
+                                     }
+                                 }
+                             } catch(e) { console.error("Sync error after drop:", e); }
+                         }
+                    } else {
+                         alert('请先选中单元格，再拖入数据列');
+                    }
+                }
+            };
+        }
+
         // Prepare data for Luckysheet
         // 1. Convert columns to first row
         let sheetData = [];
@@ -1853,6 +2973,13 @@
             row: sheetData.length + 5,
             column: cols.length + 2,
             gridKey: containerId, // Unique key for this instance
+            // Prevent Luckysheet from interfering with GridStack mouse events
+            enableCellDrag: false, // Disable cell dragging
+            enableCellCopy: false, // Disable cell copy
+            enableCellCut: false, // Disable cell cut
+            enableCellPaste: false, // Disable cell paste
+            enableCellSelect: true, // Keep cell selection enabled
+            enableCellEdit: true, // Keep cell editing enabled
             data: [{
                 "name": "Sheet1",
                 "color": "",
@@ -2029,18 +3156,53 @@
         }
     }
     
+    // --- Report Parameters Management (Legacy Removed) ---
+    // New management is at the top of the script
+
+
     function loadReport() {
         let fileConfig = null;
         try {
-            const rawConfig = JSON.parse(document.getElementById('file-config').textContent || 'null');
+            const rawContent = document.getElementById('file-config').textContent || 'null';
+            console.log('loadReport: rawContent length', rawContent.length);
+            const rawConfig = JSON.parse(rawContent);
             // If rawConfig is a string (because template_config is a JSON string passed to json_script), parse it again
             fileConfig = (typeof rawConfig === 'string') ? JSON.parse(rawConfig) : rawConfig;
+            console.log('loadReport: parsed fileConfig', fileConfig);
         } catch(e) {
             console.error("Error parsing report config:", e);
         }
 
+        if (fileConfig && fileConfig.params) {
+            reportParams = fileConfig.params;
+            // Render existing params
+            reportParams.forEach(p => {
+                 renderParamWidget(p);
+            });
+        }
+
         if (fileConfig && fileConfig.charts) {
+            // Helper to find dataset ID by name if missing
+            const findDatasetId = (name) => {
+                if (!name) return null;
+                const options = document.getElementById('propDataset').options;
+                for (let i = 0; i < options.length; i++) {
+                    if (options[i].text === name) return options[i].value;
+                }
+                return null;
+            };
+
             fileConfig.charts.forEach(c => {
+                // Try to recover dataset_id if missing
+                if (!c.dataset_id && c.dataset_name) {
+                     const recoveredId = findDatasetId(c.dataset_name);
+                     if (recoveredId) {
+                         console.log(`Recovered dataset_id for ${c.dataset_name}: ${recoveredId}`);
+                         c.dataset_id = recoveredId;
+                     }
+                }
+                
+                console.log('loadReport: adding chart', c.id, c.dataset_id);
                 chartsConfig[c.id] = c;
                 addWidgetToGrid(c.id, c);
             });
@@ -2080,7 +3242,8 @@
         });
         
         const payload = {
-            charts: layout
+            charts: layout,
+            params: reportParams
         };
         
         try {
@@ -2458,11 +3621,11 @@
             name: formData.get('name'),
             datasource_id: formData.get('datasource_id'),
             mode: 'sql', // Always save as SQL
-            content: formData.get('sql_script'),
+            sql_script: formData.get('sql_script'),
             report_id: '{{ report.id }}'
         };
         
-        if (!payload.name || !payload.datasource_id || !payload.content) {
+        if (!payload.name || !payload.datasource_id || !payload.sql_script) {
             alert('请填写完整信息');
             return;
         }
@@ -2691,6 +3854,42 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
                 <button type="button" class="btn btn-primary" onclick="saveNewDataset()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Params Config Modal -->
+<div class="modal fade" id="paramsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">报表参数配置</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info small">
+                    <i class="bi bi-info-circle"></i> 定义参数后，可在SQL中使用 <code>{% verbatim %}{{ param:key }}{% endverbatim %}</code> 进行引用。
+                </div>
+                <table class="table table-sm table-bordered">
+                    <thead>
+                        <tr>
+                            <th style="width: 20%">参数名 (Key)</th>
+                            <th style="width: 25%">显示名 (Label)</th>
+                            <th style="width: 20%">类型</th>
+                            <th style="width: 25%">默认值</th>
+                            <th style="width: 10%">操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="paramsList"></tbody>
+                </table>
+                <button class="btn btn-sm btn-outline-primary" onclick="addParamRow()">
+                    <i class="bi bi-plus"></i> 添加参数
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">关闭</button>
+                <button type="button" class="btn btn-primary" onclick="saveParamsConfig()">保存配置</button>
             </div>
         </div>
     </div>

@@ -1,5 +1,6 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
+from django.db import IntegrityError
 from django.contrib.auth.models import User
 from core.auth.models import SysMenu, SysRole
 from core.data_source.models import DataSource
@@ -20,24 +21,51 @@ import os
 import re
 from django.conf import settings
 
-def resolve_dataset_sql(sql_script, depth=0):
+def resolve_dataset_sql(sql_script, depth=0, params=None):
     """
-    Recursively resolve {{ dataset:ID }} placeholders in SQL.
+    Recursively resolve {{ dataset:ID }} and {{ param:KEY }} placeholders in SQL.
     """
     if not sql_script:
         return sql_script
     if depth > 5: # Prevent infinite recursion
         return sql_script
         
-    # Regex to find {{ dataset:123 }}
+    if params is None:
+        params = {}
+        
+    # 1. Resolve Parameters {{ param:key }}
+    def replace_param(match):
+        key = match.group(1)
+        val = params.get(key)
+        
+        if val is None:
+            return ""
+            
+        # Handle list/tuple (Multi-select)
+        if isinstance(val, (list, tuple)):
+            # If items are strings, wrap in quotes
+            formatted_items = []
+            for item in val:
+                if isinstance(item, str):
+                    formatted_items.append(f"'{item}'")
+                else:
+                    formatted_items.append(str(item))
+            return ",".join(formatted_items)
+            
+        return str(val)
+
+    param_pattern = r'\{\{\s*param:(\w+)\s*\}\}'
+    sql_script = re.sub(param_pattern, replace_param, sql_script)
+
+    # 2. Resolve Datasets {{ dataset:ID }}
     pattern = r'\{\{\s*dataset:(\d+)\s*\}\}'
     
     def replace_match(match):
         dataset_id = match.group(1)
         try:
             dataset = DataSet.objects.get(pk=dataset_id)
-            # Recursively resolve the child dataset's SQL first
-            child_sql = resolve_dataset_sql(dataset.sql_script, depth + 1)
+            # Recursively resolve the child dataset's SQL first, passing params down
+            child_sql = resolve_dataset_sql(dataset.sql_script, depth + 1, params)
             # Wrap in subquery
             return f"({child_sql})"
         except DataSet.DoesNotExist:
@@ -583,7 +611,7 @@ def report_edit_view(request, report_id):
 
 from apps.dashboard.utils.data_processing import aggregate_data
 
-def _get_report_render_data(report):
+def _get_report_render_data(report, params=None):
     report_data = []
     charts_data = []
     error = None
@@ -591,10 +619,13 @@ def _get_report_render_data(report):
     has_visual_charts = False
     config = None
     
+    if params is None:
+        params = {}
+    
     # 1. Fetch Data (Legacy/Table Mode)
     for dataset in report.datasets.all():
         try:
-            resolved_sql = resolve_dataset_sql(dataset.sql_script)
+            resolved_sql = resolve_dataset_sql(dataset.sql_script, params=params)
             columns, data = QueryExecutor.execute(dataset.datasource, resolved_sql)
             report_data.append({
                 'dataset_name': dataset.name,
@@ -684,7 +715,7 @@ def _get_report_render_data(report):
                             
                         try:
                             chart_filters = chart.get('filters', [])
-                            resolved_sql = resolve_dataset_sql(target_dataset.sql_script)
+                            resolved_sql = resolve_dataset_sql(target_dataset.sql_script, params=params)
                             columns, data = QueryExecutor.execute(target_dataset.datasource, resolved_sql, filters=chart_filters)
                             
                             # Convert to list of dicts for aggregation
@@ -694,7 +725,7 @@ def _get_report_render_data(report):
                                 data_dicts,
                                 chart.get('x_axis'),
                                 chart.get('y_axis'),
-                                chart.get('aggregation', 'none'),
+                                chart.get('aggregation', chart.get('aggregate', 'none')),
                                 chart.get('series_col')
                             )
                             
@@ -770,8 +801,69 @@ def report_detail_view(request, report_id):
     menus = get_menus()
     report = get_object_or_404(Report, pk=report_id)
     
+    # Extract query params
+    params = request.GET.dict()
+    
+    # Process Report Parameters for UI
+    report_params = []
+    try:
+        # Prioritize template_config, then file_config (legacy)
+        config_source = None
+        if report.template_config and len(report.template_config) > 5:
+            config_source = json.loads(report.template_config)
+        else:
+            config_source = load_report_from_file(report)
+            
+        if config_source and 'params' in config_source:
+            raw_params = config_source['params']
+            for p in raw_params:
+                # Inject current value
+                p['current_value'] = params.get(p['key'], p.get('default', ''))
+                
+                # Fetch dynamic options if configured
+                if p.get('type') == 'select' and p.get('source_type') == 'dataset' and p.get('dataset_id'):
+                    try:
+                        ds = DataSet.objects.get(pk=p['dataset_id'])
+                        # Execute SQL with current params (allows cascading)
+                        resolved_sql = resolve_dataset_sql(ds.sql_script, params=params)
+                        cols, data = QueryExecutor.execute(ds.datasource, resolved_sql)
+                        
+                        label_field = p.get('label_field')
+                        value_field = p.get('value_field') or label_field
+                        
+                        # Find indices
+                        label_idx = cols.index(label_field) if label_field and label_field in cols else 0
+                        value_idx = cols.index(value_field) if value_field and value_field in cols else label_idx
+                        
+                        # Build options string
+                        opts = []
+                        seen = set()
+                        for row in data:
+                            val = str(row[value_idx])
+                            lbl = str(row[label_idx])
+                            if val not in seen:
+                                seen.add(val)
+                                # Simple sanitization
+                                safe_val = val.replace(',', '').replace(':', '')
+                                safe_lbl = lbl.replace(',', '').replace(':', '')
+                                opts.append(f"{safe_val}:{safe_lbl}")
+                        
+                        p['options'] = ",".join(opts)
+                    except Exception as e:
+                        print(f"Error fetching options for {p.get('key')}: {e}")
+                        
+                report_params.append(p)
+                
+            # If params not in request, apply defaults to 'params' dict passed to SQL resolution
+            for p in report_params:
+                if p['key'] not in params and p.get('default'):
+                     params[p['key']] = p['default']
+                     
+    except Exception as e:
+        print(f"Error parsing report params: {e}")
+
     # Render Data
-    render_context = _get_report_render_data(report)
+    render_context = _get_report_render_data(report, params=params)
     
     # Build Tree for Sidebar (Viewer Mode)
     all_dirs = list(ReportDirectory.objects.all().order_by('sort_order', 'id'))
@@ -830,7 +922,8 @@ def report_detail_view(request, report_id):
         # Sidebar Context
         'directory_tree': root_nodes,
         # 'root_reports': root_reports, # User requested to hide root reports in viewer sidebar
-        'current_report_id': report.id
+        'current_report_id': report.id,
+        'report_params': report_params
     }
     return render(request, 'dashboard/report/detail.html', context)
 
@@ -846,15 +939,36 @@ def report_design_view(request, report_id):
     menus = get_menus()
     report = get_object_or_404(Report, pk=report_id)
     
-    # Load from file if exists
+    # Load from file if exists, BUT prioritize DB template_config if it has content (user edits)
+    # Only use file_config if DB config is empty/default
     file_config = load_report_from_file(report)
-    if file_config:
+    
+    # Check if DB has valid config (more than just empty JSON)
+    db_has_content = False
+    if report.template_config and len(report.template_config) > 5:
+        try:
+             db_json = json.loads(report.template_config)
+             if db_json and isinstance(db_json, dict) and db_json.get('charts'):
+                 db_has_content = True
+        except:
+             pass
+
+    if file_config and not db_has_content:
         report.template_config = json.dumps(file_config)
     
     # Logic to include referenced datasets
     datasets = list(report.datasets.all())
-    if file_config:
-        charts = file_config.get('charts', [])
+    
+    # Determine config to scan for dataset references
+    config_source = file_config
+    if not config_source and report.template_config and report.template_config != '{}':
+        try:
+            config_source = json.loads(report.template_config)
+        except Exception:
+            pass
+
+    if config_source:
+        charts = config_source.get('charts', [])
         extra_ids = set()
         for chart in charts:
             did = chart.get('dataset_id')
@@ -870,11 +984,18 @@ def report_design_view(request, report_id):
             extra_datasets = DataSet.objects.filter(id__in=missing_ids)
             datasets.extend(list(extra_datasets))
     
+    # Combine global datasets and linked/referenced datasets for display
+    all_datasets_map = {d.id: d for d in DataSet.objects.filter(is_report_specific=False)}
+    for d in datasets:
+        all_datasets_map[d.id] = d
+    
+    all_datasets_list = sorted(all_datasets_map.values(), key=lambda x: x.name)
+
     context = {
         'menus': menus,
         'report': report,
         'datasets': datasets,
-        'all_datasets': DataSet.objects.filter(is_report_specific=False).order_by('name'), # All available Data Center datasets
+        'all_datasets': all_datasets_list, # Unified list: Global + Linked Report Specific
         'data_sources': DataSource.objects.all(),
         'directories': ReportDirectory.objects.all().order_by('parent', 'sort_order'),
         'title': '报表展示',
@@ -1025,6 +1146,10 @@ def api_create_dataset(request):
                 'datasource_name': datasource.name
             }
         })
+    except IntegrityError as e:
+        if 'unique constraint' in str(e).lower() or 'duplicate key' in str(e).lower():
+             return JsonResponse({'success': False, 'message': f'数据集名称 "{name}" 已存在，请使用其他名称'})
+        return JsonResponse({'success': False, 'message': '数据库完整性错误: ' + str(e)})
     except Exception as e:
         return JsonResponse({'success': False, 'message': str(e)})
 
@@ -1460,17 +1585,25 @@ def api_preview_chart(request):
         return JsonResponse({'success': False, 'message': 'Invalid method'})
 
     try:
+        import time
+        start_time = time.time()
+        
         data = json.loads(request.body)
         # data IS the chart config object from frontend
+        params = data.get('params', {})
         
         dataset_id = data.get('dataset_id')
         if not dataset_id:
              return JsonResponse({'success': False, 'message': 'Missing dataset_id'})
-             
+              
         dataset = get_object_or_404(DataSet, pk=dataset_id)
         
-        resolved_sql = resolve_dataset_sql(dataset.sql_script)
-        columns, db_data = QueryExecutor.execute(dataset.datasource, resolved_sql, limit=1000)
+        resolved_sql = resolve_dataset_sql(dataset.sql_script, params=params)
+        filters = data.get('filters', [])
+        
+        sql_execution_time = time.time()
+        columns, db_data = QueryExecutor.execute(dataset.datasource, resolved_sql, limit=1000, filters=filters)
+        sql_execution_end = time.time()
         
         df_data = [dict(zip(columns, row)) for row in db_data]
         
@@ -1480,8 +1613,18 @@ def api_preview_chart(request):
         x_axis = chart_config.get('x_axis') or chart_config.get('category_col') or chart_config.get('x_col')
         y_axis = chart_config.get('y_axis') or chart_config.get('value_col') or chart_config.get('y_col')
         series_col = chart_config.get('series_col')
+        aggregation = chart_config.get('aggregation') or chart_config.get('aggregate') or 'none'
         
-        processed_data = aggregate_data(df_data, x_axis, y_axis, series_col)
+        aggregation_start = time.time()
+        processed_data = aggregate_data(df_data, x_axis, y_axis, aggregation, series_col)
+        aggregation_end = time.time()
+        
+        total_time = time.time() - start_time
+        print(f"API Preview Chart Execution Time:")
+        print(f"Total: {total_time:.2f}s")
+        print(f"SQL Execution: {sql_execution_end - sql_execution_time:.2f}s")
+        print(f"Data Aggregation: {aggregation_end - aggregation_start:.2f}s")
+        print(f"Data Rows: {len(db_data)}")
         
         clean_config = chart_config.copy()
         for k in ['type', 'title', 'data', 'x_axis', 'y_axis', 'series_col', 'dataset_id', 'id', 'category_col', 'value_col', 'x_col', 'y_col']:

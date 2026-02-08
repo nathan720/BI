@@ -1314,6 +1314,9 @@ class ChartFactory:
                 c.set_colors(default_colors)
             c.add_xaxis(x_data)
             
+            if isinstance(stack, str) and (stack.lower() == 'none' or not stack.strip()):
+                stack = False
+
             if isinstance(stack, str) and stack:
                  stack_name = stack
             else:
