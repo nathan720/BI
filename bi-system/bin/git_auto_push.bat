@@ -3,10 +3,9 @@ echo ==========================================
 echo       Auto Git Commit and Push
 echo ==========================================
 
-:: Switch to project root directory
-cd /d "%~dp0.."
-
-echo [1/3] Adding changes...
+:: Switch to project root dir@echo off
+cd /d "%~dp0..\.."
+echo [1/3] Adding changes from repo root...
 git add .
 
 echo [2/3] Committing changes...
