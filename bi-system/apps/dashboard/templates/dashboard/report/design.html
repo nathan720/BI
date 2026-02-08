@@ -3,6 +3,30 @@
 
 {% block content %}
 <link href="{% static 'dashboard/css/gridstack.min.css' %}" rel="stylesheet"/>
+    <style>
+        /* Transparent mask that covers the widget content during interaction */
+        .widget-interaction-mask {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            display: none; /* Hidden by default */
+            cursor: move; /* Indicate moving */
+        }
+        
+        /* When the item is interacting (drag/resize), show the mask */
+        .grid-stack-item-interacting .widget-interaction-mask {
+            display: block !important;
+        }
+
+        /* Also force pointer events none on containers as a backup */
+        .grid-stack-item-interacting .luckysheet-container,
+        .grid-stack-item-interacting .chart-container {
+            pointer-events: none !important;
+        }
+    </style>
 <script src="{% static 'dashboard/js/gridstack-all.js' %}"></script>
 <script>
     // --- Data Filter Logic ---
@@ -486,7 +510,17 @@
         width: 100%;
         height: 100%;
         position: relative;
+        overflow: hidden !important; /* Force hidden to prevent external scrollbars */
     }
+
+    /* Force parent GridStack content to hide overflow for Luckysheet */
+    /* Note: This assumes Luckysheet is the direct child or we need to target it specifically */
+    .grid-stack-item-content:has(.luckysheet-container) {
+        overflow: hidden !important;
+    }
+    
+    /* Fallback for browsers not supporting :has - apply via JS or general rule if safe */
+    /* Since we modify JS to add overflow hidden, this is a backup */
     
     /* Ensure GridStack resize handles are visible over Luckysheet/Canvas */
     .grid-stack-item .ui-resizable-handle, .ui-resizable-se, .ui-resizable-sw, .ui-resizable-ne, .ui-resizable-nw {
@@ -1478,9 +1512,21 @@
             }
         });
 
+        // Add Drag Start Handler
+        grid.on('dragstart', function(event, el) {
+            el.classList.add('grid-stack-item-interacting');
+        });
+
+        // Add Drag Stop Handler
+        grid.on('dragstop', function(event, el) {
+            el.classList.remove('grid-stack-item-interacting');
+        });
+
         // Add Resize Start Handler
         grid.on('resizestart', function(event, el) {
             // When resize starts, disable pointer events for Luckysheet to prevent interference
+            el.classList.add('grid-stack-item-interacting');
+            
             const container = el.querySelector('.luckysheet-container');
             if (container) {
                 // Add CSS class to disable pointer events
@@ -1491,6 +1537,7 @@
         // Add Resize Handler
         grid.on('resizestop', function(event, el) {
             // First, remove the resizing class to restore pointer events
+            el.classList.remove('grid-stack-item-interacting');
             el.classList.remove('ui-resizable-resizing');
             
             const chartId = el.querySelector('.card').id;
@@ -1514,8 +1561,10 @@
                      
                      // Update the luckysheet options to show more rows/columns if needed
                      // based on the new container size
-                     if (luckysheet.getSheetCount() > 0) {
-                         const sheet = luckysheet.getSheet();
+                     // Fix: Use getAllSheets() as getSheetCount() is not supported
+                     const allSheets = luckysheet.getAllSheets();
+                     if (allSheets && allSheets.length > 0) {
+                         const sheet = allSheets[0];
                          const containerRect = container.getBoundingClientRect();
                          
                          // Calculate approximate number of rows and columns that fit
@@ -1524,10 +1573,35 @@
                          const estimatedRows = Math.ceil(containerRect.height / 25); // ~25px per row
                          
                          // Update the sheet configuration
-                         luckysheet.setOptions({
-                             row: Math.max(sheet.config.row, estimatedRows),
-                             column: Math.max(sheet.config.column, estimatedCols)
-                         });
+                         // Note: luckysheet.setOptions is not supported. Use insertRow/insertColumn instead.
+                         try {
+                             // Get current dimensions
+                             // sheet.data is 2D array [row][col]
+                             const currentRows = sheet.data ? sheet.data.length : 0;
+                             const currentCols = sheet.data && sheet.data[0] ? sheet.data[0].length : 0;
+                             
+                             if (currentRows > 0 && currentCols > 0) {
+                                 // Add Rows if needed
+                                 if (estimatedRows > currentRows) {
+                                     const diffRow = estimatedRows - currentRows;
+                                     if (typeof luckysheet.insertRow === 'function') {
+                                         // Insert after the last row
+                                         luckysheet.insertRow(currentRows - 1, { number: diffRow, order: 'back' });
+                                     }
+                                 }
+                                 
+                                 // Add Columns if needed
+                                 if (estimatedCols > currentCols) {
+                                     const diffCol = estimatedCols - currentCols;
+                                     if (typeof luckysheet.insertColumn === 'function') {
+                                         // Insert after the last column
+                                         luckysheet.insertColumn(currentCols - 1, { number: diffCol, order: 'right' });
+                                     }
+                                 }
+                             }
+                         } catch (e) {
+                             console.warn('Auto-expansion failed:', e);
+                         }
                          
                          // Force refresh to show new cells
                          luckysheet.refresh();
@@ -1568,6 +1642,9 @@
                     // Render Card Structure
                     el.innerHTML = `
                         <div class="card h-100 shadow-sm" id="${newId}">
+                            <!-- Interaction Mask -->
+                            <div class="widget-interaction-mask"></div>
+                            
                             <div class="card-header bg-white fw-bold small text-truncate" data-role="header">
                                 ${config.title}
                             </div>
@@ -1577,6 +1654,19 @@
                             </div>
                         </div>
                     `;
+                    
+                    // Add immediate mousedown handler to header for faster response
+                    const header = el.querySelector('.card-header');
+                    if (header) {
+                        header.addEventListener('mousedown', function(e) {
+                            // Only if left mouse button
+                            if (e.button === 0) {
+                                el.classList.add('grid-stack-item-interacting');
+                                window.isGridInteracting = true;
+                                window.interactingEl = el;
+                            }
+                        });
+                    }
                     
                     el.querySelector('.card').onclick = function(e) {
                         e.stopPropagation();
@@ -1601,6 +1691,24 @@
             // Load Saved Report
             loadReport();
         });
+
+        // Global Safety Net for Mouseup
+        window.addEventListener('mouseup', function(e) {
+            if (window.isGridInteracting) {
+                console.log("Global mouseup caught - stopping interaction");
+                if (window.interactingEl) {
+                    window.interactingEl.classList.remove('grid-stack-item-interacting');
+                    window.interactingEl.classList.remove('ui-resizable-resizing');
+                }
+                // Cleanup all potentially stuck items
+                document.querySelectorAll('.grid-stack-item-interacting').forEach(el => {
+                    el.classList.remove('grid-stack-item-interacting');
+                });
+                
+                window.isGridInteracting = false;
+                window.interactingEl = null;
+            }
+        }, true); // Use capture phase to ensure we catch it
     });
 
     // --- API & Config Loading ---
@@ -2904,6 +3012,13 @@
         // Add Drag & Drop Listeners to Container for Data Columns
         const container = document.getElementById(containerId);
         if (container) {
+            // FIX: Force overflow hidden on parent GridStack content to prevent scrollbar jitter
+            // Luckysheet handles its own scrolling, so the container should not scroll
+            const gridContent = container.closest('.grid-stack-item-content');
+            if (gridContent) {
+                gridContent.style.setProperty('overflow', 'hidden', 'important');
+            }
+
             container.ondragover = function(e) {
                 e.preventDefault();
                 e.dataTransfer.dropEffect = 'copy';
