@@ -15,6 +15,7 @@ git commit -m "Auto update: %timestamp%"
 
 echo [3/3] Pushing to remote...
 git push origin main
+pause
 
 if %errorlevel% neq 0 (
     echo.
